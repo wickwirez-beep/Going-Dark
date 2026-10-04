@@ -1,13 +1,10 @@
 package com.wickwirez.goingdark
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
-import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
-import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.runtime.getValue
@@ -15,11 +12,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
-import org.json.JSONTokener
-import kotlin.coroutines.resume
 
 class ScanEngine(context: Context) {
     val webView = WebView(context)
@@ -37,27 +31,14 @@ class ScanEngine(context: Context) {
     private var pageDone: CompletableDeferred<Unit>? = null
     private var human: CompletableDeferred<Boolean>? = null
     private var httpStatus = 200
+    private var loadError = ""
 
     init {
-        configure()
-    }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun configure() {
-        val s = webView.settings
-        s.javaScriptEnabled = true
-        s.domStorageEnabled = true
-        s.useWideViewPort = true
-        s.loadWithOverviewMode = true
-        // Present as the regular Chrome on this phone instead of an embedded WebView.
-        s.userAgentString = WebSettings.getDefaultUserAgent(webView.context)
-            .replace("; wv", "")
-            .replace(Regex("Version/\\S+\\s"), "")
-        CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+        prepareWebView(webView, false)
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 httpStatus = 200
+                loadError = ""
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -77,7 +58,10 @@ class ScanEngine(context: Context) {
                 request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
-                if (request?.isForMainFrame == true) httpStatus = -1
+                if (request?.isForMainFrame == true) {
+                    httpStatus = -1
+                    loadError = error?.description?.toString() ?: "unknown error"
+                }
             }
         }
     }
@@ -88,6 +72,7 @@ class ScanEngine(context: Context) {
         for (b in brokers) {
             current = b.name
             step = "Loading the search"
+            prepareWebView(webView, b.ua == "stock")
             load(b.buildUrl(profile))
             var result = settle(b, pj)
             while (result.status == Status.BLOCKED) {
@@ -135,19 +120,7 @@ class ScanEngine(context: Context) {
     }
 
     private suspend fun probe(pj: String): JSONObject? {
-        val script = "(" + extractJs + ")(" + pj + ")"
-        val raw = suspendCancellableCoroutine<String?> { cont ->
-            webView.evaluateJavascript(script) { value ->
-                if (cont.isActive) cont.resume(value)
-            }
-        }
-        if (raw == null || raw == "null") return null
-        return try {
-            val inner = JSONTokener(raw).nextValue() as? String
-            if (inner == null) null else JSONObject(inner)
-        } catch (e: Exception) {
-            null
-        }
+        return evalJson(webView, "(" + extractJs + ")(" + pj + ")")
     }
 
     private suspend fun settle(b: Broker, pj: String): BrokerResult {
@@ -181,6 +154,7 @@ class ScanEngine(context: Context) {
             }
         }
         val none = r.optBoolean("none")
+        val title = r.optString("title")
         val okHttp = httpStatus in 200..299 || httpStatus == 404
         return when {
             found.isNotEmpty() && (!none || found.any { it.strong }) ->
@@ -188,11 +162,14 @@ class ScanEngine(context: Context) {
             okHttp && (none || r.optBoolean("echo")) ->
                 BrokerResult(b.id, Status.CLEAR, now, emptyList(), "")
             httpStatus == -1 ->
-                BrokerResult(b.id, Status.UNKNOWN, now, emptyList(), "Page failed to load")
+                BrokerResult(b.id, Status.UNKNOWN, now, emptyList(), "Page failed to load ($loadError)")
             !okHttp ->
                 BrokerResult(b.id, Status.UNKNOWN, now, emptyList(), "Site answered HTTP $httpStatus")
             else ->
-                BrokerResult(b.id, Status.UNKNOWN, now, emptyList(), "Page never mentioned your name")
+                BrokerResult(
+                    b.id, Status.UNKNOWN, now, emptyList(),
+                    "Page never mentioned your name. Page title: $title"
+                )
         }
     }
 }

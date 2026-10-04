@@ -6,9 +6,9 @@ function (P) {
   var text = body ? (body.innerText || '') : '';
   var title = String(document.title || '');
   var low = (title + ' ' + text).toLowerCase();
-  var out = { blocked: false, echo: false, none: false, chars: text.length, listings: [] };
+  var out = { blocked: false, echo: false, none: false, chars: text.length, title: title.slice(0, 70), listings: [] };
 
-  var WALL = /just a moment|verify you are human|verifying you are human|are you a robot|attention required|access denied|unusual traffic|press & hold|press and hold|checking your browser|pardon our interruption|you have been blocked|security check|complete the captcha|human verification/;
+  var WALL = /just a moment|verify you are (a )?human|verifying you are human|are you a robot|are you human|attention required|access denied|unusual traffic|press & hold|press and hold|checking your browser|checking if the site connection is secure|enable javascript and cookies|pardon our interruption|you have been blocked|security check|complete the captcha|human verification/;
   var frame = document.querySelector('iframe[src*="challenges.cloudflare.com"], iframe[src*="hcaptcha.com"], iframe[src*="captcha-delivery.com"], #challenge-form, #px-captcha');
   if ((WALL.test(low) || frame) && text.length < 3000) {
     out.blocked = true;
@@ -67,6 +67,7 @@ function (P) {
 
   var EV = /\b(relatives?|related to|lived in|lives in|resides in|also known as|aka|born|view details|view profile|view record|view report|open report|full report)\b/i;
   var HARD = /\(?\b\d{3}\)?[-. ]\d{3}[-. ]\d{4}\b|\b\d{5}(-\d{4})?\b|\b\d{1,6}\s+\w+(\s\w+)?\s(st|ave|rd|dr|ln|blvd|ct|way|hwy|pkwy|cir|pl|trl|street|avenue|road|drive|lane|court)\b/i;
+  var AD = /sponsored|advertisement/i;
 
   var lens = new Map();
   function tlen(node) {
@@ -74,43 +75,86 @@ function (P) {
     if (v === undefined) { v = (node.innerText || '').length; lens.set(node, v); }
     return v;
   }
-  var seen = [];
+  var grades = new Map();
+  function grade(node) {
+    var g = grades.get(node);
+    if (g !== undefined) return g;
+    var raw = node.innerText || '';
+    var h = norm(raw);
+    g = 0;
+    if (nameIn(h)) {
+      var ac = ageCheck(raw);
+      if (ac !== -1) {
+        var lc = locIn(raw, h);
+        if (ac === 1 && lc === 2) g = 2;
+        else if (ac === 1 && lc === 1) g = 1;
+        else if (lc === 2 && (EV.test(raw) || HARD.test(raw))) g = 1;
+      }
+    }
+    grades.set(node, g);
+    return g;
+  }
+  function isAd(node) {
+    var base = tlen(node), up = node;
+    for (var i = 0; i < 3 && up && up !== body; i++) {
+      if (tlen(up) > base + 120) break;
+      if (AD.test(up.innerText || '')) return true;
+      up = up.parentElement;
+    }
+    return false;
+  }
+  var site = location.hostname.replace(/^www\./, '');
+  function sameSite(href) {
+    try {
+      var hn = new URL(href).hostname;
+      return hn === site || hn.slice(-(site.length + 1)) === '.' + site;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  var picked = [];
   var anchors = document.querySelectorAll('a[href]');
   var max = Math.min(anchors.length, 1500);
   for (var x = 0; x < max && out.listings.length < 8; x++) {
-    var el = anchors[x], pick = null;
-    for (var d = 0; d < 7 && el && el !== body; d++) {
+    var el = anchors[x], pick = null, weak = null;
+    for (var d = 0; d < 8 && el && el !== body; d++) {
       var len = tlen(el);
       if (len > 900) break;
-      if (len >= 25) pick = el;
+      if (len >= 25) {
+        var g = grade(el);
+        if (g === 2) { pick = el; break; }
+        if (g === 1 && !weak) weak = el;
+      }
       el = el.parentElement;
     }
-    if (!pick || seen.indexOf(pick) !== -1) continue;
-    seen.push(pick);
-    var raw = pick.innerText || '';
-    var h = norm(raw);
-    if (!nameIn(h)) continue;
-    var ac = ageCheck(raw);
-    if (ac === -1) continue;
-    var lc = locIn(raw, h);
-    if (!(ac === 1 || EV.test(raw) || HARD.test(raw))) continue;
-    if (!(lc === 2 || (ac === 1 && lc === 1))) continue;
+    var strong = !!pick;
+    if (!pick) pick = weak;
+    if (!pick) continue;
+    var dup = false;
+    for (var z = 0; z < picked.length; z++) {
+      if (picked[z].contains(pick) || pick.contains(picked[z])) { dup = true; break; }
+    }
+    if (dup) continue;
+    if (isAd(pick)) continue;
     var link = '';
+    if (pick.tagName === 'A' && sameSite(pick.href || '')) link = pick.href;
     var inner = pick.querySelectorAll('a[href]');
     for (var y2 = 0; y2 < inner.length; y2++) {
       var href = inner[y2].href || '';
-      if (href.indexOf('http') !== 0) continue;
+      if (!sameSite(href)) continue;
       if (!link) link = href;
       if (nameIn(norm(inner[y2].innerText || ''))) { link = href; break; }
     }
-    if (!link) link = location.href;
-    var dup = false;
-    for (var z = 0; z < out.listings.length; z++) {
-      if (out.listings[z].url === link) { dup = true; break; }
-    }
-    if (dup) continue;
-    out.listings.push({ url: link, strong: ac === 1 && lc === 2, text: raw.replace(/\s+/g, ' ').trim().slice(0, 220) });
+    if (!link) continue;
+    picked.push(pick);
+    out.listings.push({ url: link, strong: strong, text: (pick.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 220) });
   }
+  var strongOnly = [];
+  for (var s2 = 0; s2 < out.listings.length; s2++) {
+    if (out.listings[s2].strong) strongOnly.push(out.listings[s2]);
+  }
+  if (strongOnly.length) out.listings = strongOnly;
 
   if (!out.listings.length && out.echo && !out.none && ageCheck(text) === 1 && locIn(text, norm(text)) === 2) {
     out.listings.push({ url: location.href, strong: false, text: ('Matched on page text: ' + title).slice(0, 220) });

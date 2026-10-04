@@ -1,16 +1,18 @@
 package com.wickwirez.goingdark
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,7 +34,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
+import java.text.DateFormat
+import java.util.Date
 
 val Bg = Color(0xFF05070A)
 val Panel = Color(0xFF0E141B)
@@ -44,7 +47,7 @@ val Ink = Color(0xFFD7E3EA)
 val Dim = Color(0xFF6B7C88)
 val Mono = FontFamily.Monospace
 
-enum class Screen { HOME, PROFILE, SCAN }
+enum class Screen { HOME, PROFILE, SCAN, OPTOUT }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,6 +81,28 @@ fun openUrl(ctx: Context, url: String) {
     }
 }
 
+fun copyText(ctx: Context, label: String, text: String) {
+    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(ClipData.newPlainText(label, text))
+}
+
+fun dateText(ms: Long): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(ms))
+
+fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent: Map<String, Long>): String {
+    val sb = StringBuilder("Going Dark report\n")
+    for (b in brokers) {
+        val r = results[b.id]
+        sb.append(b.name).append(": ").append(statusText(r?.status))
+        if (r != null) {
+            if (r.listings.isNotEmpty()) sb.append(" (").append(r.listings.size).append(" listing)")
+            if (r.note.isNotEmpty()) sb.append(" - ").append(r.note)
+        }
+        if (sent[b.id] != null) sb.append(" [opt-out sent]")
+        sb.append("\n")
+    }
+    return sb.toString()
+}
+
 @Composable
 fun GoingDarkApp() {
     val ctx = LocalContext.current
@@ -85,8 +110,13 @@ fun GoingDarkApp() {
     val results = remember {
         mutableStateMapOf<String, BrokerResult>().apply { putAll(Store.loadResults(ctx)) }
     }
+    val sent = remember {
+        mutableStateMapOf<String, Long>().apply { putAll(Store.loadSent(ctx)) }
+    }
     var profile by remember { mutableStateOf(Store.loadProfile(ctx)) }
     var screen by remember { mutableStateOf(if (profile.ready) Screen.HOME else Screen.PROFILE) }
+    var target by remember { mutableStateOf<Broker?>(null) }
+    var targetUrl by remember { mutableStateOf("") }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -95,13 +125,18 @@ fun GoingDarkApp() {
         )
     ) {
         Box(Modifier.fillMaxSize().background(Bg).safeDrawingPadding()) {
-            when (screen) {
-                Screen.HOME -> HomeScreen(
-                    brokers, results, profile.ready,
-                    onScan = { screen = Screen.SCAN },
-                    onProfile = { screen = Screen.PROFILE }
+            val t = target
+            when {
+                screen == Screen.OPTOUT && t != null -> OptOutScreen(
+                    t, profile, targetUrl,
+                    onSent = {
+                        sent[t.id] = System.currentTimeMillis()
+                        Store.saveSent(ctx, sent.toMap())
+                        screen = Screen.HOME
+                    },
+                    onExit = { screen = Screen.HOME }
                 )
-                Screen.PROFILE -> ProfileScreen(
+                screen == Screen.PROFILE -> ProfileScreen(
                     profile,
                     canGoBack = profile.ready,
                     onBack = { screen = Screen.HOME },
@@ -111,13 +146,23 @@ fun GoingDarkApp() {
                         screen = Screen.HOME
                     }
                 )
-                Screen.SCAN -> ScanScreen(
+                screen == Screen.SCAN -> ScanScreen(
                     brokers, profile,
                     onResult = { r ->
                         results[r.brokerId] = r
                         Store.saveResults(ctx, results.values.toList())
                     },
                     onExit = { screen = Screen.HOME }
+                )
+                else -> HomeScreen(
+                    brokers, results, sent, profile,
+                    onScan = { screen = Screen.SCAN },
+                    onProfile = { screen = Screen.PROFILE },
+                    onOptOut = { b, url ->
+                        target = b
+                        targetUrl = url
+                        screen = Screen.OPTOUT
+                    }
                 )
             }
         }
@@ -139,9 +184,11 @@ fun Stat(n: Int, title: String, color: Color, modifier: Modifier) {
 fun HomeScreen(
     brokers: List<Broker>,
     results: Map<String, BrokerResult>,
-    canScan: Boolean,
+    sent: Map<String, Long>,
+    profile: Profile,
     onScan: () -> Unit,
-    onProfile: () -> Unit
+    onProfile: () -> Unit,
+    onOptOut: (Broker, String) -> Unit
 ) {
     val ctx = LocalContext.current
     val listed = brokers.count { results[it.id]?.status == Status.LISTED }
@@ -164,7 +211,7 @@ fun HomeScreen(
             }
             Spacer(Modifier.height(14.dp))
             Button(
-                onClick = onScan, enabled = canScan,
+                onClick = onScan, enabled = profile.ready,
                 modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(10.dp)
             ) {
                 Text("RUN SCAN", fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -175,24 +222,50 @@ fun HomeScreen(
             ) {
                 Text("EDIT MY DETAILS", fontFamily = Mono)
             }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = {
+                    copyText(ctx, "Going Dark report", buildReport(brokers, results, sent))
+                    Toast.makeText(ctx, "Report copied", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("COPY REPORT", fontFamily = Mono)
+            }
             Spacer(Modifier.height(14.dp))
         }
         items(brokers, key = { it.id }) { b ->
-            BrokerRow(b, results[b.id]) { url -> openUrl(ctx, url) }
+            BrokerRow(
+                b, results[b.id], sent[b.id],
+                onOpen = { url -> openUrl(ctx, url) },
+                onOptOut = { url -> onOptOut(b, url) },
+                onBrowser = { openUrl(ctx, b.buildUrl(profile)) }
+            )
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
 
 @Composable
-fun BrokerRow(b: Broker, r: BrokerResult?, onOpen: (String) -> Unit) {
+fun BrokerRow(
+    b: Broker,
+    r: BrokerResult?,
+    sentAt: Long?,
+    onOpen: (String) -> Unit,
+    onOptOut: (String) -> Unit,
+    onBrowser: () -> Unit
+) {
+    val removed = r != null && r.status == Status.CLEAR && sentAt != null
     Column(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(10.dp))
             .background(Panel).padding(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(b.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(statusText(r?.status), color = statusColor(r?.status), fontSize = 12.sp, fontFamily = Mono)
+            Text(
+                if (removed) "REMOVED" else statusText(r?.status),
+                color = statusColor(r?.status), fontSize = 12.sp, fontFamily = Mono
+            )
         }
         if (r != null) {
             if (r.note.isNotEmpty()) Text(r.note, color = Dim, fontSize = 12.sp)
@@ -206,6 +279,37 @@ fun BrokerRow(b: Broker, r: BrokerResult?, onOpen: (String) -> Unit) {
                     Text("Tap to open the listing", color = Cyan, fontSize = 11.sp)
                 }
             }
+            if (r.status == Status.LISTED) {
+                if (sentAt != null) {
+                    Text(
+                        "Opt-out sent " + dateText(sentAt) + ". Scan again in a few days to confirm.",
+                        color = Green, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+                if (b.optOut.isNotEmpty()) {
+                    val best = r.listings.firstOrNull { it.strong } ?: r.listings.firstOrNull()
+                    val link = best?.url ?: ""
+                    Button(
+                        onClick = { onOptOut(link) },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            if (sentAt != null) "OPEN OPT-OUT AGAIN" else "START OPT-OUT",
+                            fontFamily = Mono, fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            if (r.status == Status.BLOCKED || r.status == Status.UNKNOWN) {
+                OutlinedButton(
+                    onClick = onBrowser,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("CHECK IN BROWSER", fontFamily = Mono)
+                }
+            }
         }
     }
 }
@@ -217,10 +321,12 @@ fun ProfileScreen(initial: Profile, canGoBack: Boolean, onBack: () -> Unit, onSa
     var city by remember { mutableStateOf(initial.city) }
     var st by remember { mutableStateOf(initial.state) }
     var year by remember { mutableStateOf(initial.birthYear) }
+    var email by remember { mutableStateOf(initial.email) }
     var others by remember { mutableStateOf(initial.otherNames) }
     var past by remember { mutableStateOf(initial.pastPlaces) }
     val draft = Profile(
-        first.trim(), last.trim(), others.trim(), year.trim(), city.trim(), st.trim(), past.trim()
+        first.trim(), last.trim(), others.trim(), year.trim(), city.trim(), st.trim(), past.trim(),
+        email.trim()
     )
     BackHandler(enabled = canGoBack) { onBack() }
     Column(
@@ -229,7 +335,7 @@ fun ProfileScreen(initial: Profile, canGoBack: Boolean, onBack: () -> Unit, onSa
     ) {
         Text("YOUR DETAILS", color = Cyan, fontSize = 22.sp, fontWeight = FontWeight.Black, fontFamily = Mono)
         Text(
-            "Encrypted on this phone and never uploaded. Used only to build the searches and recognise your listings.",
+            "Encrypted on this phone and never uploaded. Used only to build the searches, recognise your listings and fill in opt-out forms.",
             color = Dim, fontSize = 13.sp
         )
         Field(first, { first = it }, "First name")
@@ -240,6 +346,7 @@ fun ProfileScreen(initial: Profile, canGoBack: Boolean, onBack: () -> Unit, onSa
             year, { v -> year = v.filter { c -> c.isDigit() }.take(4) },
             "Birth year (sharpens matching)", KeyboardType.Number
         )
+        Field(email, { email = it }, "Email for opt-out confirmations", KeyboardType.Email)
         Field(others, { others = it }, "Other names, comma separated (optional)")
         Field(past, { past = it }, "Past places: City, ST; City, ST (optional)")
         Button(
@@ -257,73 +364,4 @@ fun Field(value: String, onChange: (String) -> Unit, hint: String, type: Keyboar
         value = value, onValueChange = onChange, label = { Text(hint) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = type), modifier = Modifier.fillMaxWidth()
     )
-}
-
-@Composable
-fun ScanScreen(
-    brokers: List<Broker>,
-    profile: Profile,
-    onResult: (BrokerResult) -> Unit,
-    onExit: () -> Unit
-) {
-    val ctx = LocalContext.current
-    val engine = remember { ScanEngine(ctx) }
-    val log = remember { mutableStateListOf<String>() }
-    var finished by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        engine.run(brokers, profile) { r ->
-            onResult(r)
-            val name = brokers.firstOrNull { it.id == r.brokerId }?.name ?: r.brokerId
-            log.add(0, name + "  >  " + statusText(r.status))
-        }
-        finished = true
-    }
-    DisposableEffect(Unit) {
-        onDispose { engine.destroy() }
-    }
-    BackHandler { onExit() }
-
-    Column(Modifier.fillMaxSize().padding(12.dp)) {
-        Text(
-            if (finished) "SCAN COMPLETE" else "SCANNING  " + engine.done + "/" + brokers.size,
-            color = Cyan, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = Mono
-        )
-        Spacer(Modifier.height(6.dp))
-        LinearProgressIndicator(
-            progress = { engine.done / brokers.size.toFloat() },
-            modifier = Modifier.fillMaxWidth(), color = Cyan, trackColor = Panel
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(engine.current, color = Ink, fontWeight = FontWeight.SemiBold)
-        Text(engine.step, color = if (engine.needsHuman) Amber else Dim, fontSize = 13.sp)
-        Spacer(Modifier.height(8.dp))
-        AndroidView(
-            factory = { engine.webView },
-            modifier = Modifier.fillMaxWidth().weight(1f)
-                .border(1.dp, if (engine.needsHuman) Amber else Dim)
-        )
-        if (engine.needsHuman) {
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { engine.humanDone(true) }, modifier = Modifier.weight(1f)) {
-                    Text("I SOLVED IT")
-                }
-                OutlinedButton(onClick = { engine.humanDone(false) }, modifier = Modifier.weight(1f)) {
-                    Text("SKIP SITE")
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        for (line in log.take(3)) {
-            Text(
-                line, color = Dim, fontSize = 12.sp, fontFamily = Mono,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onExit, modifier = Modifier.fillMaxWidth()) {
-            Text(if (finished) "BACK TO RESULTS" else "STOP SCAN")
-        }
-    }
 }

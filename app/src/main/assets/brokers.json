@@ -1,14 +1,14 @@
 [
-  { "id": "truepeoplesearch", "name": "TruePeopleSearch", "search": "https://www.truepeoplesearch.com/results?name={First_q}%20{Last_q}&citystatezip={City_q},%20{ST}" },
-  { "id": "fastpeoplesearch", "name": "FastPeopleSearch", "search": "https://www.fastpeoplesearch.com/name/{first}-{last}_{city}-{st}" },
-  { "id": "spokeo", "name": "Spokeo", "search": "https://www.spokeo.com/{First}-{Last}/{State}/{City}" },
-  { "id": "whitepages", "name": "Whitepages", "search": "https://www.whitepages.com/name/{First}-{Last}/{City}-{ST}" },
-  { "id": "thatsthem", "name": "ThatsThem", "search": "https://thatsthem.com/name/{First}-{Last}/{City}-{ST}" },
-  { "id": "usphonebook", "name": "USPhonebook", "search": "https://www.usphonebook.com/{first}-{last}/{state}/{city}" },
-  { "id": "clustrmaps", "name": "ClustrMaps", "search": "https://clustrmaps.com/persons/{First}-{Last}/{State}/{City}" },
-  { "id": "searchpeoplefree", "name": "SearchPeopleFree", "search": "https://www.searchpeoplefree.com/find/{first}-{last}/{st}/{city}" },
-  { "id": "cyberbackgroundchecks", "name": "CyberBackgroundChecks", "search": "https://www.cyberbackgroundchecks.com/people/{first}-{last}/{st}/{city}" },
-  { "id": "smartbackgroundchecks", "name": "SmartBackgroundChecks", "search": "https://www.smartbackgroundchecks.com/people/{first}-{last}/{city}/{st}" },
-  { "id": "radaris", "name": "Radaris", "search": "https://radaris.com/p/{First}/{Last}/" },
-  { "id": "nuwber", "name": "Nuwber", "search": "https://nuwber.com/search?name={First_q}%20{Last_q}&state={ST}&city={City_q}" }
+  { "id": "truepeoplesearch", "name": "TruePeopleSearch", "search": "https://www.truepeoplesearch.com/results?name={First_q}%20{Last_q}&citystatezip={City_q},%20{ST}", "optOut": "https://www.truepeoplesearch.com/removal", "tip": "Enter your email, tick the box, solve the CAPTCHA and tap Begin Removal. Then find your record, open it and tap Remove This Record. Finish with the link they email you." },
+  { "id": "fastpeoplesearch", "name": "FastPeopleSearch", "search": "https://www.fastpeoplesearch.com/name/{first}-{last}_{city}-{st}", "optOut": "https://www.fastpeoplesearch.com/removal", "ua": "stock" },
+  { "id": "spokeo", "name": "Spokeo", "search": "https://www.spokeo.com/{First}-{Last}/{State}/{City}", "optOut": "https://www.spokeo.com/optout", "tip": "Paste your listing link, enter your email, solve the CAPTCHA and submit. Finish with the link they email you." },
+  { "id": "whitepages", "name": "Whitepages", "search": "https://www.whitepages.com/name/{First}-{Last}/{City}-{ST}", "optOut": "https://www.whitepages.com/suppression-requests", "tip": "Paste your listing link and follow the prompts. They phone you with a code to confirm, so keep the phone handy." },
+  { "id": "thatsthem", "name": "ThatsThem", "search": "https://thatsthem.com/name/{First}-{Last}/{City}-{ST}", "optOut": "https://thatsthem.com/optout" },
+  { "id": "usphonebook", "name": "USPhonebook", "search": "https://www.usphonebook.com/{first}-{last}/{state}/{city}", "optOut": "https://www.usphonebook.com/opt-out" },
+  { "id": "clustrmaps", "name": "ClustrMaps", "search": "https://clustrmaps.com/persons/{First}-{Last}/{State}/{City}", "optOut": "https://clustrmaps.com/bl/opt-out", "ua": "stock" },
+  { "id": "searchpeoplefree", "name": "SearchPeopleFree", "search": "https://www.searchpeoplefree.com/find/{first}-{last}/{st}/{city}", "optOut": "https://www.searchpeoplefree.com/opt-out" },
+  { "id": "cyberbackgroundchecks", "name": "CyberBackgroundChecks", "search": "https://www.cyberbackgroundchecks.com/people/{first}-{last}/{st}/{city}", "optOut": "https://www.cyberbackgroundchecks.com/removal", "ua": "stock" },
+  { "id": "smartbackgroundchecks", "name": "SmartBackgroundChecks", "search": "https://www.smartbackgroundchecks.com/people/{first}-{last}/{city}/{st}", "optOut": "https://www.smartbackgroundchecks.com/optout" },
+  { "id": "radaris", "name": "Radaris", "search": "https://radaris.com/p/{First}/{Last}/", "optOut": "https://radaris.com/control/privacy" },
+  { "id": "nuwber", "name": "Nuwber", "search": "https://nuwber.com/search?name={First_q}%20{Last_q}&state={ST}&city={City_q}", "optOut": "https://nuwber.com/removal/link", "ua": "stock" }
 ]
