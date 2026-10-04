@@ -1,0 +1,14 @@
+[
+  { "id": "truepeoplesearch", "name": "TruePeopleSearch", "search": "https://www.truepeoplesearch.com/results?name={First_q}%20{Last_q}&citystatezip={City_q},%20{ST}" },
+  { "id": "fastpeoplesearch", "name": "FastPeopleSearch", "search": "https://www.fastpeoplesearch.com/name/{first}-{last}_{city}-{st}" },
+  { "id": "spokeo", "name": "Spokeo", "search": "https://www.spokeo.com/{First}-{Last}/{State}/{City}" },
+  { "id": "whitepages", "name": "Whitepages", "search": "https://www.whitepages.com/name/{First}-{Last}/{City}-{ST}" },
+  { "id": "thatsthem", "name": "ThatsThem", "search": "https://thatsthem.com/name/{First}-{Last}/{City}-{ST}" },
+  { "id": "usphonebook", "name": "USPhonebook", "search": "https://www.usphonebook.com/{first}-{last}/{state}/{city}" },
+  { "id": "clustrmaps", "name": "ClustrMaps", "search": "https://clustrmaps.com/persons/{First}-{Last}/{State}/{City}" },
+  { "id": "searchpeoplefree", "name": "SearchPeopleFree", "search": "https://www.searchpeoplefree.com/find/{first}-{last}/{st}/{city}" },
+  { "id": "cyberbackgroundchecks", "name": "CyberBackgroundChecks", "search": "https://www.cyberbackgroundchecks.com/people/{first}-{last}/{st}/{city}" },
+  { "id": "smartbackgroundchecks", "name": "SmartBackgroundChecks", "search": "https://www.smartbackgroundchecks.com/people/{first}-{last}/{city}/{st}" },
+  { "id": "radaris", "name": "Radaris", "search": "https://radaris.com/p/{First}/{Last}/" },
+  { "id": "nuwber", "name": "Nuwber", "search": "https://nuwber.com/search?name={First_q}%20{Last_q}&state={ST}&city={City_q}" }
+]
