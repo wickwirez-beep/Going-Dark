@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +43,7 @@ fun BrokerRow(
     onOptOutInBrowser: () -> Unit,
     onMarkSent: () -> Unit
 ) {
+    val ctx = LocalContext.current
     Column(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(10.dp))
             .background(Panel).padding(12.dp)
@@ -83,6 +85,25 @@ fun BrokerRow(
                         if (sentAt != null) "OPEN OPT-OUT AGAIN" else "START OPT-OUT",
                         fontFamily = Mono, fontWeight = FontWeight.Bold
                     )
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (link.isNotEmpty()) copyText(ctx, "Listing link", link)
+                        onOptOutInBrowser()
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("OPT OUT IN BROWSER", fontFamily = Mono)
+                }
+                if (sentAt == null) {
+                    OutlinedButton(
+                        onClick = onMarkSent,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("MARK AS SENT", fontFamily = Mono)
+                    }
                 }
             }
             if (r.status == Status.CLEAR) {
@@ -159,16 +180,20 @@ fun FormRow(b: Broker, sentAt: Long?, onOptOut: () -> Unit) {
 @Composable
 fun ProfileScreen(initial: Profile, canGoBack: Boolean, onBack: () -> Unit, onSave: (Profile) -> Unit) {
     var first by remember { mutableStateOf(initial.first) }
+    var middle by remember { mutableStateOf(initial.middle) }
     var last by remember { mutableStateOf(initial.last) }
+    var street by remember { mutableStateOf(initial.street) }
     var city by remember { mutableStateOf(initial.city) }
     var st by remember { mutableStateOf(initial.state) }
+    var zip by remember { mutableStateOf(initial.zip) }
     var year by remember { mutableStateOf(initial.birthYear) }
     var email by remember { mutableStateOf(initial.email) }
+    var phone by remember { mutableStateOf(initial.phone) }
     var others by remember { mutableStateOf(initial.otherNames) }
     var past by remember { mutableStateOf(initial.pastPlaces) }
     val draft = Profile(
         first.trim(), last.trim(), others.trim(), year.trim(), city.trim(), st.trim(), past.trim(),
-        email.trim()
+        email.trim(), middle.trim(), street.trim(), zip.trim(), phone.trim()
     )
     BackHandler(enabled = canGoBack) { onBack() }
     Column(
@@ -181,14 +206,21 @@ fun ProfileScreen(initial: Profile, canGoBack: Boolean, onBack: () -> Unit, onSa
             color = Dim, fontSize = 13.sp
         )
         Field(first, { first = it }, "First name")
+        Field(middle, { middle = it }, "Middle name or initial (optional)")
         Field(last, { last = it }, "Last name")
+        Field(street, { street = it }, "Street address (optional, for forms)")
         Field(city, { city = it }, "Current city")
         Field(st, { st = it.uppercase().take(2) }, "State, 2 letters (TX)")
+        Field(
+            zip, { v -> zip = v.filter { c -> c.isDigit() || c == '-' }.take(10) },
+            "ZIP code (optional, for forms)", KeyboardType.Number
+        )
         Field(
             year, { v -> year = v.filter { c -> c.isDigit() }.take(4) },
             "Birth year (sharpens matching)", KeyboardType.Number
         )
         Field(email, { email = it }, "Email for opt-out confirmations", KeyboardType.Email)
+        Field(phone, { phone = it }, "Phone (optional, for forms)", KeyboardType.Phone)
         Field(others, { others = it }, "Other names, comma separated (optional)")
         Field(past, { past = it }, "Past places: City, ST; City, ST (optional)")
         Button(

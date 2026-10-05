@@ -28,7 +28,11 @@ data class Profile(
     val city: String = "",
     val state: String = "",
     val pastPlaces: String = "",
-    val email: String = ""
+    val email: String = "",
+    val middle: String = "",
+    val street: String = "",
+    val zip: String = "",
+    val phone: String = ""
 ) {
     val ready: Boolean
         get() = first.isNotBlank() && last.isNotBlank() && city.isNotBlank() &&
@@ -38,6 +42,7 @@ data class Profile(
         .put("first", first).put("last", last).put("otherNames", otherNames)
         .put("birthYear", birthYear).put("city", city).put("state", state)
         .put("pastPlaces", pastPlaces).put("email", email)
+        .put("middle", middle).put("street", street).put("zip", zip).put("phone", phone)
         .toString()
 
     fun toProbeJson(): String {
@@ -64,12 +69,17 @@ data class Profile(
             .toString()
     }
 
-    fun toFillJson(listingUrl: String): String = JSONObject()
-        .put("email", email.trim()).put("url", listingUrl)
-        .put("first", first.trim()).put("last", last.trim())
-        .put("full", first.trim() + " " + last.trim())
-        .put("city", city.trim()).put("st", state.trim().uppercase())
-        .toString()
+    fun toFillJson(listingUrl: String): String {
+        val st = state.trim().uppercase()
+        return JSONObject()
+            .put("email", email.trim()).put("url", listingUrl)
+            .put("first", first.trim()).put("middle", middle.trim()).put("last", last.trim())
+            .put("full", first.trim() + " " + last.trim())
+            .put("street", street.trim()).put("city", city.trim())
+            .put("st", st).put("stateName", STATES[st] ?: "")
+            .put("zip", zip.trim()).put("phone", phone.trim())
+            .toString()
+    }
 
     companion object {
         fun fromJson(s: String): Profile {
@@ -77,7 +87,8 @@ data class Profile(
             return Profile(
                 o.optString("first"), o.optString("last"), o.optString("otherNames"),
                 o.optString("birthYear"), o.optString("city"), o.optString("state"),
-                o.optString("pastPlaces"), o.optString("email")
+                o.optString("pastPlaces"), o.optString("email"),
+                o.optString("middle"), o.optString("street"), o.optString("zip"), o.optString("phone")
             )
         }
     }
