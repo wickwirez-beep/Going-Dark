@@ -14,6 +14,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -121,6 +123,7 @@ fun GoingDarkApp() {
     var screen by remember { mutableStateOf(if (profile.ready) Screen.HOME else Screen.PROFILE) }
     var target by remember { mutableStateOf<Broker?>(null) }
     var targetUrl by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -159,7 +162,7 @@ fun GoingDarkApp() {
                     onExit = { screen = Screen.HOME }
                 )
                 else -> HomeScreen(
-                    brokers, results, sent, profile,
+                    brokers, results, sent, profile, listState,
                     onScan = { screen = Screen.SCAN },
                     onProfile = { screen = Screen.PROFILE },
                     onOptOut = { b, url ->
@@ -183,6 +186,7 @@ fun HomeScreen(
     results: Map<String, BrokerResult>,
     sent: Map<String, Long>,
     profile: Profile,
+    listState: LazyListState,
     onScan: () -> Unit,
     onProfile: () -> Unit,
     onOptOut: (Broker, String) -> Unit,
@@ -194,7 +198,7 @@ fun HomeScreen(
     val listed = scannable.count { results[it.id]?.status == Status.LISTED }
     val clear = scannable.count { results[it.id]?.status == Status.CLEAR }
     val scanned = scannable.count { results[it.id] != null }
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp), state = listState) {
         item {
             Spacer(Modifier.height(18.dp))
             Text(
