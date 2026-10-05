@@ -159,6 +159,13 @@ fun OptOutScreen(
             modifier = Modifier.fillMaxWidth().weight(1f).border(1.dp, Dim)
         )
         Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { openUrl(ctx, broker.optOut) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("PAGE BLANK OR STUCK? OPEN IN BROWSER")
+        }
+        Spacer(Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onSent, modifier = Modifier.weight(1f)) { Text("MARK AS SENT") }
             OutlinedButton(onClick = onExit, modifier = Modifier.weight(1f)) { Text("CLOSE") }

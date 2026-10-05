@@ -2,6 +2,7 @@ package com.wickwirez.goingdark
 
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -17,12 +18,15 @@ fun prepareWebView(webView: WebView, stock: Boolean) {
     s.domStorageEnabled = true
     s.useWideViewPort = true
     s.loadWithOverviewMode = true
+    s.javaScriptCanOpenWindowsAutomatically = true
+    s.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
     val base = WebSettings.getDefaultUserAgent(webView.context)
     s.userAgentString = if (stock) {
         base
     } else {
         base.replace("; wv", "").replace(Regex("Version/\\S+\\s"), "")
     }
+    webView.webChromeClient = WebChromeClient()
     CookieManager.getInstance().setAcceptCookie(true)
     CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 }
