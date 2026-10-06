@@ -1,6 +1,7 @@
 package com.wickwirez.goingdark
 
 import android.content.Context
+import android.net.Uri
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
@@ -112,7 +113,10 @@ data class Broker(
     val search: String,
     val optOut: String = "",
     val ua: String = "",
-    val tip: String = ""
+    val tip: String = "",
+    val email: String = "",
+    val hand: Boolean = false,
+    val browser: Boolean = false
 ) {
     fun buildUrl(p: Profile): String {
         val st = p.state.trim().uppercase()
@@ -134,19 +138,49 @@ data class Broker(
             .replace("{st}", st.lowercase()).replace("{ST}", st)
             .replace("{state}", lower(full)).replace("{State}", title(full))
     }
+
+    fun mailto(p: Profile, listingUrl: String): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        val full = listOf(p.first.trim(), p.middle.trim(), p.last.trim())
+            .filter { it.isNotEmpty() }.joinToString(" ")
+        val sb = StringBuilder()
+        sb.append("Hello,\n\n")
+        sb.append("Please opt me out and delete or suppress every record about me on ")
+        sb.append(name).append(" and any related sites you operate.\n\n")
+        sb.append("Name: ").append(full).append("\n")
+        sb.append("Location: ").append(p.city.trim()).append(", ")
+            .append(p.state.trim().uppercase()).append("\n")
+        if (p.email.isNotBlank()) sb.append("Email: ").append(p.email.trim()).append("\n")
+        if (listingUrl.isNotBlank()) sb.append("Listing: ").append(listingUrl).append("\n")
+        sb.append("\nPlease confirm by email once this is done.\n\nThank you,\n").append(who)
+        return "mailto:" + email + "?subject=" + Uri.encode("Opt-out request - " + who) +
+            "&body=" + Uri.encode(sb.toString())
+    }
 }
 
 fun loadBrokers(ctx: Context): List<Broker> {
-    val arr = JSONArray(ctx.assets.open("brokers.json").bufferedReader().use { it.readText() })
     val list = ArrayList<Broker>()
-    for (i in 0 until arr.length()) {
-        val o = arr.getJSONObject(i)
-        list.add(
-            Broker(
-                o.getString("id"), o.getString("name"), o.getString("search"),
-                o.optString("optOut"), o.optString("ua"), o.optString("tip")
-            )
-        )
+    val seen = HashSet<String>()
+    val files = (ctx.assets.list("") ?: emptyArray())
+        .filter { it.startsWith("brokers") && it.endsWith(".json") }
+        .sorted()
+    for (f in files) {
+        try {
+            val arr = JSONArray(ctx.assets.open(f).bufferedReader().use { it.readText() })
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val id = o.getString("id")
+                if (!seen.add(id)) continue
+                list.add(
+                    Broker(
+                        id, o.getString("name"), o.optString("search"),
+                        o.optString("optOut"), o.optString("ua"), o.optString("tip"),
+                        o.optString("email"), o.optBoolean("hand"), o.optBoolean("browser")
+                    )
+                )
+            }
+        } catch (e: Exception) {
+        }
     }
     return list
 }

@@ -30,6 +30,15 @@ function (P) {
     if (rc.width < 8 || rc.height < 8 || rc.right < 0 || rc.bottom < 0) return true;
     return cs.visibility === 'hidden' || cs.opacity === '0';
   }
+  function inSearch(el) {
+    try {
+      if ((el.getAttribute('type') || '').toLowerCase() === 'search') return true;
+      if ((el.getAttribute('role') || '').toLowerCase() === 'searchbox') return true;
+      return !!el.closest('header, nav, [role="search"], [role="banner"]');
+    } catch (e) {
+      return false;
+    }
+  }
   var skip = ['hidden', 'checkbox', 'radio', 'submit', 'button', 'password', 'file', 'image', 'reset'];
   var nodes = document.querySelectorAll('input, textarea');
   for (var i = 0; i < nodes.length; i++) {
@@ -37,7 +46,7 @@ function (P) {
     var type = (el.getAttribute('type') || 'text').toLowerCase();
     if (skip.indexOf(type) !== -1) continue;
     if (el.value || el.disabled || el.readOnly) continue;
-    if (hiddenOne(el)) continue;
+    if (hiddenOne(el) || inSearch(el)) continue;
     var t = labelOf(el);
     var v = '', what = '';
     if (type === 'email' || /e-?mail/.test(t)) { v = P.email; what = 'email'; }
@@ -51,6 +60,7 @@ function (P) {
     else if (/city|town/.test(t)) { v = P.city; what = 'city'; }
     else if (/\bstate\b/.test(t)) { v = P.st; what = 'state'; }
     else if (/name/.test(t)) { v = P.full; what = 'name'; }
+    if (v && /search/.test(t) && what.indexOf('name') === -1) v = '';
     if (v) { setVal(el, v); filled.push(what); }
   }
   var sels = document.querySelectorAll('select');

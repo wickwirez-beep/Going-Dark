@@ -1,0 +1,23 @@
+[
+  { "id": "peopleconnect", "name": "Intelius, TruthFinder, Instant Checkmate, US Search", "search": "", "optOut": "https://suppression.peopleconnect.us/login", "tip": "One request covers all four sites. Enter your email, tap the link they email you, enter your date of birth, then find your record and suppress it." },
+  { "id": "beenverified", "name": "BeenVerified and PeopleLooker", "search": "", "optOut": "https://www.beenverified.com/svc/optout/search/optouts", "tip": "Search your name, pick your record and submit the opt-out with your email. Finish with the link they email you." },
+  { "id": "enformion", "name": "Enformion (supplies people-search sites)", "search": "", "optOut": "https://www.enformion.com/opt-out/", "tip": "A data supplier behind several people-search sites. Complete its opt-out request form." },
+  { "id": "acxiom", "name": "Acxiom (data wholesaler)", "search": "", "optOut": "https://isapps.acxiom.com/optout/optout.aspx", "tip": "Supplies marketing data to other brokers. Fill in the opt-out form with your name, address and email." },
+  { "id": "epsilon", "name": "Epsilon (data wholesaler)", "search": "", "optOut": "https://legal.epsilon.com/dsr", "tip": "Choose the opt-out or delete request and complete the form." },
+  { "id": "lexisnexis", "name": "LexisNexis (data wholesaler)", "search": "", "optOut": "https://consumer.risk.lexisnexis.com/request", "browser": true, "tip": "Feeds many background-check services. Use the request form and choose to opt out or delete." },
+  { "id": "dataaxle", "name": "Data Axle (data wholesaler)", "search": "", "optOut": "https://www.data-axle.com/privacy-rights-request/", "tip": "Complete the privacy rights request and choose delete or do not sell." },
+  { "id": "cotality", "name": "CoreLogic / Cotality (property data)", "search": "", "optOut": "https://www.cotality.com/legal/online-privacy-portal", "tip": "Property and address data. Use the privacy portal to request deletion or opt out." },
+  { "id": "melissa", "name": "Melissa (address data)", "search": "", "optOut": "https://apps.melissa.com/user/consumerprivacy.aspx", "tip": "Complete the consumer privacy form to opt out." },
+  { "id": "versium", "name": "Versium (data wholesaler)", "search": "", "optOut": "https://versium.com/ccpa-opt-out/", "tip": "Complete the opt-out form." },
+  { "id": "liveramp", "name": "LiveRamp (identity data)", "search": "", "optOut": "https://liveramp.com/privacy/my-privacy-choices", "tip": "Use the privacy choices page to opt out or request deletion." },
+  { "id": "zoominfo", "name": "ZoomInfo (work contacts)", "search": "", "optOut": "https://privacyrequest.zoominfo.com/remove/verify", "tip": "Sells work contact details. Verify your email, then remove your profile." },
+  { "id": "rocketreach", "name": "RocketReach (work contacts)", "search": "", "optOut": "https://rocketreach.co/remove-profile", "tip": "Sells work contact details. Request removal of your profile." },
+  { "id": "apollo", "name": "Apollo.io (work contacts)", "search": "", "optOut": "https://www.apollo.io/privacy-policy/remove", "tip": "Sells work contact details. Request removal with your email." },
+  { "id": "lusha", "name": "Lusha (work contacts)", "search": "", "optOut": "https://www.lusha.com/privacy-center/request-removal/", "tip": "Sells work contact details. Request removal with your email." },
+  { "id": "checksecrets", "name": "Checksecrets", "search": "", "optOut": "https://www.checksecrets.com/optOut/name/landing", "tip": "Search your name on this page and opt out of any record that is you." },
+  { "id": "nationalcellulardirectory", "name": "National Cellular Directory", "search": "", "optOut": "https://www.nationalcellulardirectory.com/optout/", "tip": "Phone lookup site. Complete the opt-out form." },
+  { "id": "quickpublicrecords", "name": "Quick Public Records", "search": "", "optOut": "https://www.quickpublicrecords.com/help-center/privacy-requests", "tip": "Complete the privacy request to suppress your listing." },
+  { "id": "searchpublicrecords", "name": "SearchPublicRecords", "search": "", "optOut": "https://www.searchpublicrecords.com/help-center/privacy-requests", "tip": "Complete the privacy request to suppress your listing." },
+  { "id": "ourstates", "name": "OurStates", "search": "", "optOut": "https://ourstates.org/opt-out", "tip": "Complete the opt-out form." },
+  { "id": "syncme", "name": "Sync.me (caller ID)", "search": "", "optOut": "https://sync.me/unsubscribe/", "tip": "Caller ID lookup. Enter your phone number to remove it." }
+]
