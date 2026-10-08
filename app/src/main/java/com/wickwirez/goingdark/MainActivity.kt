@@ -95,7 +95,7 @@ fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent:
             val r = results[b.id]
             sb.append(rowLabel(r, sent[b.id]))
             if (r != null) {
-                if (r.listings.isNotEmpty()) sb.append(" (").append(r.listings.size).append(" listing)")
+                if (r.listings.isNotEmpty()) sb.append(" (").append(r.listings.size).append(if (r.listings.size == 1) " listing)" else " listings)")
                 if (r.note.isNotEmpty()) sb.append(" - ").append(r.note)
             }
             sb.append(mark)

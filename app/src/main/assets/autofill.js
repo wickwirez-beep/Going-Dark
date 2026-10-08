@@ -1,5 +1,24 @@
 function (P) {
   var filled = [];
+  function keyOf(el) {
+    return [el.name, el.id, el.placeholder].join('|');
+  }
+  // A box you have typed in or cleared yourself is yours: it is never filled again.
+  if (!window.__gdWatch) {
+    window.__gdWatch = true;
+    document.addEventListener('input', function (e) {
+      try {
+        if (!e.isTrusted) return;
+        var path = e.composedPath ? e.composedPath() : [];
+        var own = path.length ? path[0] : e.target;
+        if (own && own.setAttribute) own.setAttribute('data-gd-mine', keyOf(own));
+      } catch (x) {
+      }
+    }, true);
+  }
+  function mine(el) {
+    return el.getAttribute('data-gd-mine') === keyOf(el);
+  }
   function fire(el) {
     var evs = ['keydown', 'keypress', 'input', 'keyup', 'change', 'blur'];
     for (var k = 0; k < evs.length; k++) el.dispatchEvent(new Event(evs[k], { bubbles: true }));
@@ -39,6 +58,12 @@ function (P) {
       return false;
     }
   }
+  // Boxes about someone filing on your behalf are left alone, whatever they ask for.
+  var AGENT = /agent|representative|behalf|guardian|attorney/;
+  // A "name" box that is not asking for your own name.
+  var NOTME = /compan|business|organi[sz]ation|employer|institution|agenc|(^|[^a-z])(firm|entity)|domain|user[ _-]?name|login|nick|maiden|alias|former|previous|other names?/;
+  // A second address line or an old address stays empty.
+  var NOTSTREET = /line[ _-]?2|address[ _-]?2|addr[ _-]?2|street[ _-]?2|previous|former|prior/;
   var skip = ['hidden', 'checkbox', 'radio', 'submit', 'button', 'password', 'file', 'image', 'reset'];
   var nodes = document.querySelectorAll('input, textarea');
   for (var i = 0; i < nodes.length; i++) {
@@ -46,28 +71,31 @@ function (P) {
     var type = (el.getAttribute('type') || 'text').toLowerCase();
     if (skip.indexOf(type) !== -1) continue;
     if (el.value || el.disabled || el.readOnly) continue;
-    if (hiddenOne(el) || inSearch(el)) continue;
+    if (hiddenOne(el) || inSearch(el) || mine(el)) continue;
     var t = labelOf(el);
+    if (AGENT.test(t) || /\bssn\b|social sec/.test(t)) continue;
     var v = '', what = '';
     if (type === 'email' || /e-?mail/.test(t)) { v = P.email; what = 'email'; }
     else if (type === 'url' || /url|link|profile|listing/.test(t)) { v = P.url; what = 'listing link'; }
-    else if (/first/.test(t)) { v = P.first; what = 'first name'; }
+    else if (/first|given/.test(t) && /last|surname|family/.test(t)) { v = P.full; what = 'name'; }
+    else if (/first|given/.test(t)) { v = P.first; what = 'first name'; }
     else if (/middle/.test(t)) { v = P.middle; what = 'middle name'; }
-    else if (/last|surname/.test(t)) { v = P.last; what = 'last name'; }
+    else if (/last|surname|family/.test(t)) { v = P.last; what = 'last name'; }
     else if (/zip|postal/.test(t)) { v = P.zip; what = 'ZIP'; }
     else if (type === 'tel' || /phone|mobile/.test(t)) { v = P.phone; what = 'phone'; }
-    else if (/street|address/.test(t)) { v = P.street; what = 'street'; }
+    else if (/street|address/.test(t)) { if (!NOTSTREET.test(t)) { v = P.street; what = 'street'; } }
     else if (/city|town/.test(t)) { v = P.city; what = 'city'; }
     else if (/\bstate\b/.test(t)) { v = P.st; what = 'state'; }
-    else if (/name/.test(t)) { v = P.full; what = 'name'; }
+    else if (/name/.test(t)) { if (!NOTME.test(t)) { v = P.full; what = 'name'; } }
     if (v && /search/.test(t) && what.indexOf('name') === -1) v = '';
     if (v) { setVal(el, v); filled.push(what); }
   }
   var sels = document.querySelectorAll('select');
   for (var s = 0; s < sels.length; s++) {
     var sel = sels[s];
-    if (sel.disabled || hiddenOne(sel) || sel.selectedIndex > 0) continue;
-    if (!/\bstate\b/.test(labelOf(sel)) || !P.st) continue;
+    if (sel.disabled || hiddenOne(sel) || sel.selectedIndex > 0 || mine(sel)) continue;
+    var st = labelOf(sel);
+    if (AGENT.test(st) || !/\bstate\b/.test(st) || !P.st) continue;
     for (var o = 0; o < sel.options.length; o++) {
       var val = (sel.options[o].value || '').trim().toUpperCase();
       var txt = (sel.options[o].text || '').trim().toUpperCase();
