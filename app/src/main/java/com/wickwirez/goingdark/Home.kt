@@ -27,6 +27,7 @@ fun HomeScreen(
     onExternal: (String) -> Unit,
     onMarkSent: (Broker) -> Unit,
     onSetManual: (Broker, Boolean) -> Unit,
+    onSetNone: (Broker, Boolean) -> Unit,
     onTimerToggle: () -> Unit,
     onTimerAdjust: (Long) -> Unit,
     onTimerExpire: () -> Unit
@@ -86,32 +87,36 @@ fun HomeScreen(
         }
         items(siteRows, key = { it.id }) { b ->
             BrokerRow(
-                b, results[b.id], sent[b.id], sent[manualKey(b.id)] != null,
+                b, results[b.id], sent[b.id], sent[manualKey(b.id)] != null, sent[noneKey(b.id)],
                 onOpen = { url -> onExternal(url) },
                 onOptOut = { url -> onOptOut(b, url) },
                 onSearchInBrowser = { onExternal(b.buildUrl(profile)) },
                 onOptOutInBrowser = { onExternal(b.optOut) },
                 onEmail = { url -> onExternal(b.mailto(profile, url)) },
                 onMarkSent = { onMarkSent(b) },
-                onSetManual = { on -> onSetManual(b, on) }
+                onSetManual = { on -> onSetManual(b, on) },
+                onSetNone = { on -> onSetNone(b, on) }
             )
         }
         item {
             Spacer(Modifier.height(18.dp))
             Text("OPT-OUT ONLY", color = Cyan, fontSize = 16.sp, fontWeight = FontWeight.Black, fontFamily = Mono)
             Text(
-                "These cannot be scanned. Each button opens the removal page or a filled-in email.",
+                "These cannot be scanned. Each button opens the removal page or a filled-in email. " +
+                    "Tap NOT LISTED when a site has nothing on you.",
                 color = Dim, fontSize = 12.sp
             )
             Spacer(Modifier.height(6.dp))
         }
         items(formOnly, key = { it.id }) { b ->
             FormRow(
-                b, sent[b.id],
+                b, sent[b.id], sent[noneKey(b.id)],
                 onOptOut = { onOptOut(b, "") },
                 onBrowser = { onExternal(b.optOut) },
                 onEmail = { onExternal(b.mailto(profile, "")) },
-                onMarkSent = { onMarkSent(b) }
+                onFind = { onExternal(b.findUrl(profile)) },
+                onMarkSent = { onMarkSent(b) },
+                onSetNone = { on -> onSetNone(b, on) }
             )
         }
         item { Spacer(Modifier.height(24.dp)) }

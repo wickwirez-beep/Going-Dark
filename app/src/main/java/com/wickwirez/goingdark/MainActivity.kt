@@ -62,6 +62,9 @@ fun rowLabel(r: BrokerResult?, sentAt: Long?): String {
 
 fun manualKey(id: String): String = "manual:" + id
 
+// Set when you checked a site and it has nothing on you.
+fun noneKey(id: String): String = "none:" + id
+
 fun openUrl(ctx: Context, url: String) {
     try {
         val action = if (url.startsWith("mailto:")) Intent.ACTION_SENDTO else Intent.ACTION_VIEW
@@ -83,12 +86,13 @@ fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent:
     sb.append("Time spent: ").append(clockText(timerMillis(sent, System.currentTimeMillis()))).append("\n")
     for (b in brokers) {
         val isSent = sent[b.id] != null
+        val none = sent[noneKey(b.id)] != null
         val mark = if (isSent) " [opt-out sent]" else ""
         sb.append(b.name).append(": ")
         if (b.search.isEmpty()) {
-            sb.append(if (isSent) "opt-out sent" else "opt-out not sent")
+            sb.append(if (none) "not listed" else if (isSent) "opt-out sent" else "opt-out not sent")
         } else if (b.hand) {
-            sb.append("CHECK BY HAND").append(mark)
+            sb.append(if (none) "NOT LISTED (checked by you)" else "CHECK BY HAND").append(mark)
         } else if (sent[manualKey(b.id)] != null) {
             sb.append("LISTED (marked by you)").append(mark)
         } else {

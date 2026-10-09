@@ -47,6 +47,11 @@ fun GoingDarkApp() {
                         touch()
                         screen = Screen.HOME
                     },
+                    onNone = {
+                        sent[noneKey(t.id)] = System.currentTimeMillis()
+                        touch()
+                        screen = Screen.HOME
+                    },
                     onExit = { screen = Screen.HOME }
                 )
                 screen == Screen.PROFILE -> ProfileScreen(
@@ -87,6 +92,10 @@ fun GoingDarkApp() {
                     },
                     onSetManual = { b, on ->
                         if (on) sent[manualKey(b.id)] = System.currentTimeMillis() else sent.remove(manualKey(b.id))
+                        save()
+                    },
+                    onSetNone = { b, on ->
+                        if (on) sent[noneKey(b.id)] = System.currentTimeMillis() else sent.remove(noneKey(b.id))
                         save()
                     },
                     onTimerToggle = {

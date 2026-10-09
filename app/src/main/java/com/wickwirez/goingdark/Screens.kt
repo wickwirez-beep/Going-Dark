@@ -1,7 +1,6 @@
 package com.wickwirez.goingdark
 
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -105,6 +104,7 @@ fun OptOutScreen(
     profile: Profile,
     listingUrl: String,
     onSent: () -> Unit,
+    onNone: () -> Unit,
     onExit: () -> Unit
 ) {
     val ctx = LocalContext.current
@@ -112,7 +112,7 @@ fun OptOutScreen(
     val webView = remember {
         WebView(ctx).apply {
             prepareWebView(this, broker.ua == "stock")
-            webViewClient = WebViewClient()
+            webViewClient = QuietClient()
         }
     }
     var filled by remember { mutableStateOf("") }
@@ -196,15 +196,26 @@ fun OptOutScreen(
                 }
             }
         }
-        OutlinedButton(
-            onClick = { openUrl(ctx, broker.optOut) },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("PAGE BLANK OR STUCK? OPEN IN BROWSER")
+        val pad = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onSent, modifier = Modifier.weight(1f), contentPadding = pad) {
+                Text("MARK AS SENT")
+            }
+            if (broker.search.isEmpty()) {
+                OutlinedButton(onClick = onNone, modifier = Modifier.weight(1f), contentPadding = pad) {
+                    Text("NOT LISTED")
+                }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onSent, modifier = Modifier.weight(1f)) { Text("MARK AS SENT") }
-            OutlinedButton(onClick = onExit, modifier = Modifier.fillMaxWidth().weight(1f)) { Text("CLOSE") }
+            OutlinedButton(
+                onClick = { openUrl(ctx, broker.optOut) }, modifier = Modifier.weight(1f), contentPadding = pad
+            ) {
+                Text("OPEN IN BROWSER")
+            }
+            OutlinedButton(onClick = onExit, modifier = Modifier.weight(1f), contentPadding = pad) {
+                Text("CLOSE")
+            }
         }
     }
 }

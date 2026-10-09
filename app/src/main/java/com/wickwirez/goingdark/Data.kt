@@ -116,9 +116,15 @@ data class Broker(
     val tip: String = "",
     val email: String = "",
     val hand: Boolean = false,
-    val browser: Boolean = false
+    val browser: Boolean = false,
+    val find: String = ""
 ) {
-    fun buildUrl(p: Profile): String {
+    fun buildUrl(p: Profile): String = fill(search, p)
+
+    // The site's own page for your name, when it has one.
+    fun findUrl(p: Profile): String = fill(find, p)
+
+    private fun fill(template: String, p: Profile): String {
         val st = p.state.trim().uppercase()
         val full = STATES[st] ?: st
         fun words(s: String) = s.replace(Regex("[^\\p{L}0-9 \\-]"), "").trim()
@@ -128,11 +134,11 @@ data class Broker(
             w.lowercase().replaceFirstChar { c -> c.uppercase() }
         }
         fun query(s: String) = URLEncoder.encode(s.trim(), "UTF-8").replace("+", "%20")
-        return search
+        return template
             .replace("{first}", lower(p.first)).replace("{First}", title(p.first))
             .replace("{First_q}", query(p.first))
             .replace("{last}", lower(p.last)).replace("{Last}", title(p.last))
-            .replace("{Last_q}", query(p.last))
+            .replace("{Last_q}", query(p.last)).replace("{l}", lower(p.last).take(1))
             .replace("{city}", lower(p.city)).replace("{City}", title(p.city))
             .replace("{City_q}", query(p.city))
             .replace("{st}", st.lowercase()).replace("{ST}", st)
@@ -175,7 +181,8 @@ fun loadBrokers(ctx: Context): List<Broker> {
                     Broker(
                         id, o.getString("name"), o.optString("search"),
                         o.optString("optOut"), o.optString("ua"), o.optString("tip"),
-                        o.optString("email"), o.optBoolean("hand"), o.optBoolean("browser")
+                        o.optString("email"), o.optBoolean("hand"), o.optBoolean("browser"),
+                        o.optString("find")
                     )
                 )
             }

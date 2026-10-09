@@ -41,31 +41,52 @@ fun RowButton(text: String, primary: Boolean = false, onClick: () -> Unit) {
     }
 }
 
+// Two buttons side by side, so the row does not grow taller.
+@Composable
+fun RowButtonPair(left: String, onLeft: () -> Unit, right: String, onRight: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(
+            onClick = onLeft, modifier = Modifier.weight(1f), shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+        ) {
+            Text(left, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        OutlinedButton(
+            onClick = onRight, modifier = Modifier.weight(1f), shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+        ) {
+            Text(right, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
 @Composable
 fun BrokerRow(
     b: Broker,
     r: BrokerResult?,
     sentAt: Long?,
     manual: Boolean,
+    noneAt: Long?,
     onOpen: (String) -> Unit,
     onOptOut: (String) -> Unit,
     onSearchInBrowser: () -> Unit,
     onOptOutInBrowser: () -> Unit,
     onEmail: (String) -> Unit,
     onMarkSent: () -> Unit,
-    onSetManual: (Boolean) -> Unit
+    onSetManual: (Boolean) -> Unit,
+    onSetNone: (Boolean) -> Unit
 ) {
     val ctx = LocalContext.current
     val listed = manual || (r != null && r.status == Status.LISTED)
     val best = r?.listings?.firstOrNull { it.strong } ?: r?.listings?.firstOrNull()
     val link = best?.url ?: ""
     val label = when {
-        b.hand -> if (sentAt != null) "SENT" else "CHECK BY HAND"
+        b.hand -> if (noneAt != null) "NOT LISTED" else if (sentAt != null) "SENT" else "CHECK BY HAND"
         manual -> "LISTED"
         else -> rowLabel(r, sentAt)
     }
     val labelColor = when {
-        b.hand -> if (sentAt != null) Green else Amber
+        b.hand -> if (noneAt != null || sentAt != null) Green else Amber
         manual -> Pink
         else -> statusColor(r?.status)
     }
@@ -82,12 +103,22 @@ fun BrokerRow(
                 "This site blocks the app's browser, so scans skip it. Check it in your own browser.",
                 color = Dim, fontSize = 12.sp
             )
-            if (sentAt != null) {
+            if (noneAt != null) {
+                Text("Marked not listed " + dateText(noneAt), color = Green, fontSize = 12.sp)
+            } else if (sentAt != null) {
                 Text("Opt-out sent " + dateText(sentAt), color = Green, fontSize = 12.sp)
             }
             RowButton("CHECK IN BROWSER") { onSearchInBrowser() }
-            if (b.optOut.isNotEmpty()) RowButton("OPT OUT IN BROWSER") { onOptOutInBrowser() }
-            if (sentAt == null) RowButton("MARK AS SENT") { onMarkSent() }
+            if (noneAt != null) {
+                RowButton("UNDO NOT LISTED") { onSetNone(false) }
+            } else {
+                if (b.optOut.isNotEmpty()) RowButton("OPT OUT IN BROWSER") { onOptOutInBrowser() }
+                if (sentAt == null) {
+                    RowButtonPair("MARK AS SENT", onMarkSent, "NOT LISTED", { onSetNone(true) })
+                } else {
+                    RowButton("NOT LISTED") { onSetNone(true) }
+                }
+            }
         } else {
             if (manual) {
                 Text(
@@ -150,10 +181,13 @@ fun BrokerRow(
 fun FormRow(
     b: Broker,
     sentAt: Long?,
+    noneAt: Long?,
     onOptOut: () -> Unit,
     onBrowser: () -> Unit,
     onEmail: () -> Unit,
-    onMarkSent: () -> Unit
+    onFind: () -> Unit,
+    onMarkSent: () -> Unit,
+    onSetNone: (Boolean) -> Unit
 ) {
     Column(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(10.dp))
@@ -162,31 +196,45 @@ fun FormRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(b.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Text(
-                if (sentAt != null) "SENT" else "NOT SENT",
-                color = if (sentAt != null) Green else Dim, fontSize = 12.sp, fontFamily = Mono
+                if (noneAt != null) "NOT LISTED" else if (sentAt != null) "SENT" else "NOT SENT",
+                color = if (noneAt != null || sentAt != null) Green else Dim, fontSize = 12.sp, fontFamily = Mono
             )
         }
         if (b.tip.isNotEmpty()) Text(b.tip, color = Dim, fontSize = 12.sp)
-        if (sentAt != null) {
+        if (noneAt != null) {
+            Text(
+                "Marked not listed " + dateText(noneAt), color = Green, fontSize = 12.sp,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+            if (b.find.isNotEmpty()) RowButton("FIND ME ON THIS SITE") { onFind() }
+            RowButton("UNDO NOT LISTED") { onSetNone(false) }
+        } else if (sentAt != null) {
             Text(
                 "Opt-out sent " + dateText(sentAt), color = Green, fontSize = 12.sp,
                 modifier = Modifier.padding(top = 6.dp)
             )
+            if (b.find.isNotEmpty()) RowButton("FIND ME ON THIS SITE") { onFind() }
             if (b.optOut.isNotEmpty()) {
-                RowButton("OPEN OPT-OUT AGAIN") { if (b.browser) onBrowser() else onOptOut() }
+                RowButtonPair(
+                    "OPT-OUT AGAIN", { if (b.browser) onBrowser() else onOptOut() },
+                    "NOT LISTED", { onSetNone(true) }
+                )
+            } else {
+                RowButton("NOT LISTED") { onSetNone(true) }
             }
         } else {
+            if (b.find.isNotEmpty()) RowButton("FIND ME ON THIS SITE", primary = true) { onFind() }
             if (b.optOut.isNotEmpty()) {
-                if (!b.browser) RowButton("START OPT-OUT", primary = true) { onOptOut() }
+                if (!b.browser) RowButton("START OPT-OUT", primary = b.find.isEmpty()) { onOptOut() }
                 RowButton(
                     if (b.browser) "OPEN OPT-OUT IN BROWSER" else "OPT OUT IN BROWSER",
-                    primary = b.browser
+                    primary = b.browser && b.find.isEmpty()
                 ) { onBrowser() }
             }
             if (b.email.isNotEmpty()) {
                 RowButton("SEND EMAIL REQUEST", primary = b.optOut.isEmpty()) { onEmail() }
             }
-            RowButton("MARK AS SENT") { onMarkSent() }
+            RowButtonPair("MARK AS SENT", onMarkSent, "NOT LISTED", { onSetNone(true) })
         }
     }
 }

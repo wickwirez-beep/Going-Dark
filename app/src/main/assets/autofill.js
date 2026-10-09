@@ -64,6 +64,13 @@ function (P) {
   var NOTME = /compan|business|organi[sz]ation|employer|institution|agenc|(^|[^a-z])(firm|entity)|domain|user[ _-]?name|login|nick|maiden|alias|former|previous|other names?/;
   // A second address line or an old address stays empty.
   var NOTSTREET = /line[ _-]?2|address[ _-]?2|addr[ _-]?2|street[ _-]?2|previous|former|prior/;
+  // A box for a code they text or email you never gets your phone number, email or link.
+  var CODE = /(^|[^a-z])otp|otp(code|input|field|token|[^a-z]|$)|totp|passcode|one[ _-]?time|(verification|verify|security|confirmation|confirm|access|auth|sms|text|login|2fa)[ _-]?code|\d[ -]?digit (code|verification|pin)|enter (the |your |a )?code|code (we|you|that|was|sent|from)|sent (you )?(a|the|your) code/;
+  var CODEWORD = /(^|[^a-z])code([^a-z]|$)/;
+  function codeBox(el, t) {
+    var max = parseInt(el.getAttribute('maxlength') || '0', 10);
+    return CODE.test(t) || (max > 0 && max < 10);
+  }
   var skip = ['hidden', 'checkbox', 'radio', 'submit', 'button', 'password', 'file', 'image', 'reset'];
   var nodes = document.querySelectorAll('input, textarea');
   for (var i = 0; i < nodes.length; i++) {
@@ -75,14 +82,17 @@ function (P) {
     var t = labelOf(el);
     if (AGENT.test(t) || /\bssn\b|social sec/.test(t)) continue;
     var v = '', what = '';
-    if (type === 'email' || /e-?mail/.test(t)) { v = P.email; what = 'email'; }
-    else if (type === 'url' || /url|link|profile|listing/.test(t)) { v = P.url; what = 'listing link'; }
+    var code = codeBox(el, t);
+    if (type === 'email' || /e-?mail/.test(t)) { if (type === 'email' || !code) { v = P.email; what = 'email'; } }
+    else if (type === 'url' || /url|link|profile|listing/.test(t)) { if (type === 'url' || !code) { v = P.url; what = 'listing link'; } }
     else if (/first|given/.test(t) && /last|surname|family/.test(t)) { v = P.full; what = 'name'; }
     else if (/first|given/.test(t)) { v = P.first; what = 'first name'; }
     else if (/middle/.test(t)) { v = P.middle; what = 'middle name'; }
     else if (/last|surname|family/.test(t)) { v = P.last; what = 'last name'; }
     else if (/zip|postal/.test(t)) { v = P.zip; what = 'ZIP'; }
-    else if (type === 'tel' || /phone|mobile/.test(t)) { v = P.phone; what = 'phone'; }
+    else if (type === 'tel' || /phone|mobile|(^|[^a-z])tel([^a-z]|$)/.test(t)) {
+      if (!code && (/phone|mobile|cell|(^|[^a-z])tel([^a-z]|$)/.test(t) || !CODEWORD.test(t))) { v = P.phone; what = 'phone'; }
+    }
     else if (/street|address/.test(t)) { if (!NOTSTREET.test(t)) { v = P.street; what = 'street'; } }
     else if (/city|town/.test(t)) { v = P.city; what = 'city'; }
     else if (/\bstate\b/.test(t)) { v = P.st; what = 'state'; }
