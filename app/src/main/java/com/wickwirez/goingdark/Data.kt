@@ -117,7 +117,9 @@ data class Broker(
     val email: String = "",
     val hand: Boolean = false,
     val browser: Boolean = false,
-    val find: String = ""
+    val find: String = "",
+    // Phone lookup sites need your number to find you, so their emails include it.
+    val sendPhone: Boolean = false
 ) {
     fun buildUrl(p: Profile): String = fill(search, p)
 
@@ -145,22 +147,50 @@ data class Broker(
             .replace("{state}", lower(full)).replace("{State}", title(full))
     }
 
-    fun mailto(p: Profile, listingUrl: String): String {
+    // listingUrl may hold several links, one per line.
+    fun mailto(p: Profile, listingUrl: String): String = "mailto:" + email +
+        "?subject=" + Uri.encode(mailSubject(p)) + "&body=" + Uri.encode(mailBody(p, listingUrl))
+
+    fun mailSubject(p: Profile): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        return if (p.state.trim().uppercase() == "TX") "Data deletion request (Texas resident) - " + who
+        else "Opt-out request - " + who
+    }
+
+    fun mailBody(p: Profile, listingUrl: String): String {
         val who = p.first.trim() + " " + p.last.trim()
         val full = listOf(p.first.trim(), p.middle.trim(), p.last.trim())
             .filter { it.isNotEmpty() }.joinToString(" ")
+        val company = name.replace(Regex("\\s*\\(.*\\)\\s*$"), "")
+        val links = listingUrl.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        val texas = p.state.trim().uppercase() == "TX"
         val sb = StringBuilder()
         sb.append("Hello,\n\n")
-        sb.append("Please opt me out and delete or suppress every record about me on ")
-        sb.append(name).append(" and any related sites you operate.\n\n")
+        if (texas) {
+            sb.append("I am a Texas resident. Under the Texas Data Privacy and Security Act ")
+            sb.append("(Texas Business and Commerce Code, Section 541.051), I ask you to:\n\n")
+            sb.append("1. Delete all personal data you hold about me, including data you obtained from other sources.\n")
+            sb.append("2. Opt me out of the sale of my personal data, targeted advertising and profiling.\n")
+            sb.append("3. Remove every listing about me from ").append(company)
+                .append(" and any related sites you operate.\n\n")
+        } else {
+            sb.append("Please opt me out and delete or suppress every record about me on ")
+            sb.append(company).append(" and any related sites you operate.\n\n")
+        }
         sb.append("Name: ").append(full).append("\n")
         sb.append("Location: ").append(p.city.trim()).append(", ")
             .append(p.state.trim().uppercase()).append("\n")
         if (p.email.isNotBlank()) sb.append("Email: ").append(p.email.trim()).append("\n")
-        if (listingUrl.isNotBlank()) sb.append("Listing: ").append(listingUrl).append("\n")
-        sb.append("\nPlease confirm by email once this is done.\n\nThank you,\n").append(who)
-        return "mailto:" + email + "?subject=" + Uri.encode("Opt-out request - " + who) +
-            "&body=" + Uri.encode(sb.toString())
+        if (sendPhone && p.phone.isNotBlank()) sb.append("Phone: ").append(p.phone.trim()).append("\n")
+        if (links.size == 1) sb.append("Listing: ").append(links[0]).append("\n")
+        if (links.size > 1) {
+            sb.append("Listings:\n")
+            for (l in links) sb.append(l).append("\n")
+        }
+        sb.append("\n")
+        if (texas) sb.append("Section 541.052 requires a response within 45 days of receiving this request. ")
+        sb.append("Please confirm by email once this is done.\n\nThank you,\n").append(who)
+        return sb.toString()
     }
 }
 
@@ -182,7 +212,7 @@ fun loadBrokers(ctx: Context): List<Broker> {
                         id, o.getString("name"), o.optString("search"),
                         o.optString("optOut"), o.optString("ua"), o.optString("tip"),
                         o.optString("email"), o.optBoolean("hand"), o.optBoolean("browser"),
-                        o.optString("find")
+                        o.optString("find"), o.optBoolean("sendPhone")
                     )
                 )
             }

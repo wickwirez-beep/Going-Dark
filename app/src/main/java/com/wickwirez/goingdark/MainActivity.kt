@@ -65,6 +65,45 @@ fun manualKey(id: String): String = "manual:" + id
 // Set when you checked a site and it has nothing on you.
 fun noneKey(id: String): String = "none:" + id
 
+// Texas law gives a business 45 days to answer a privacy request.
+const val REPLY_DAYS = 45
+const val DAY_MS = 24L * 60L * 60L * 1000L
+const val AG_COMPLAINT = "https://consumerprotection.texasattorneygeneral.gov/"
+
+// Days they have left to answer, counted from the day you sent it. Below zero once they are late.
+fun daysLeft(sentAt: Long, now: Long): Int = REPLY_DAYS - ((now - sentAt) / DAY_MS).toInt()
+
+fun dueText(sentAt: Long, now: Long): String {
+    val left = daysLeft(sentAt, now)
+    return when {
+        left > 1 -> "$left days left"
+        left == 1 -> "1 day left"
+        left == 0 -> "due today"
+        left == -1 -> "1 day overdue"
+        else -> "${-left} days overdue"
+    }
+}
+
+fun dueSentence(sentAt: Long, now: Long): String {
+    val left = daysLeft(sentAt, now)
+    return when {
+        left > 1 -> "$left days left for them to respond."
+        left == 1 -> "1 day left for them to respond."
+        left == 0 -> "Their 45 days are up today."
+        left == -1 -> "Their 45 days ran out 1 day ago."
+        else -> "Their 45 days ran out ${-left} days ago."
+    }
+}
+
+// True while a row still needs something from you: not sent yet, or sent and their 45 days ran out.
+fun needsAction(b: Broker, results: Map<String, BrokerResult>, sent: Map<String, Long>, now: Long): Boolean {
+    if (sent[noneKey(b.id)] != null) return false
+    val scanRow = b.search.isNotEmpty() && !b.hand
+    if (scanRow && sent[manualKey(b.id)] == null && results[b.id]?.status == Status.CLEAR) return false
+    val sentAt = sent[b.id] ?: return true
+    return daysLeft(sentAt, now) < 0
+}
+
 fun openUrl(ctx: Context, url: String) {
     try {
         val action = if (url.startsWith("mailto:")) Intent.ACTION_SENDTO else Intent.ACTION_VIEW
@@ -81,28 +120,41 @@ fun copyText(ctx: Context, label: String, text: String) {
 
 fun dateText(ms: Long): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(ms))
 
+fun dateTimeText(ms: Long): String =
+    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(ms))
+
 fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent: Map<String, Long>): String {
+    val now = System.currentTimeMillis()
     val sb = StringBuilder("Going Dark report\n")
-    sb.append("Time spent: ").append(clockText(timerMillis(sent, System.currentTimeMillis()))).append("\n")
+    sb.append("Time spent: ").append(clockText(timerMillis(sent, now))).append("\n")
+    val last = results.values.maxOfOrNull { it.checkedAt }
+    sb.append("Last scan: ").append(if (last == null) "never" else dateTimeText(last)).append("\n")
+    sb.append("Still to do: ").append(brokers.count { needsAction(it, results, sent, now) }).append("\n")
     for (b in brokers) {
-        val isSent = sent[b.id] != null
+        val sentAt = sent[b.id]
         val none = sent[noneKey(b.id)] != null
-        val mark = if (isSent) " [opt-out sent]" else ""
+        val mark = if (sentAt != null) " [opt-out sent]" else ""
+        val markDue = if (sentAt != null) " [opt-out sent, " + dueText(sentAt, now) + "]" else ""
         sb.append(b.name).append(": ")
         if (b.search.isEmpty()) {
-            sb.append(if (none) "not listed" else if (isSent) "opt-out sent" else "opt-out not sent")
+            sb.append(
+                if (none) "not listed"
+                else if (sentAt != null) "opt-out sent, " + dueText(sentAt, now)
+                else "opt-out not sent"
+            )
         } else if (b.hand) {
-            sb.append(if (none) "NOT LISTED (checked by you)" else "CHECK BY HAND").append(mark)
+            if (none) sb.append("NOT LISTED (checked by you)").append(mark)
+            else sb.append("CHECK BY HAND").append(markDue)
         } else if (sent[manualKey(b.id)] != null) {
-            sb.append("LISTED (marked by you)").append(mark)
+            sb.append("LISTED (marked by you)").append(markDue)
         } else {
             val r = results[b.id]
-            sb.append(rowLabel(r, sent[b.id]))
+            sb.append(rowLabel(r, sentAt))
             if (r != null) {
                 if (r.listings.isNotEmpty()) sb.append(" (").append(r.listings.size).append(if (r.listings.size == 1) " listing)" else " listings)")
                 if (r.note.isNotEmpty()) sb.append(" - ").append(r.note)
             }
-            sb.append(mark)
+            sb.append(if (r != null && r.status == Status.CLEAR) mark else markDue)
         }
         sb.append("\n")
     }

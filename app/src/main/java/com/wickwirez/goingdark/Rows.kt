@@ -80,13 +80,18 @@ fun BrokerRow(
     val listed = manual || (r != null && r.status == Status.LISTED)
     val best = r?.listings?.firstOrNull { it.strong } ?: r?.listings?.firstOrNull()
     val link = best?.url ?: ""
+    // Every listing that clearly matches you goes into an email request.
+    val mine = r?.listings?.filter { it.strong }?.map { it.url }.orEmpty()
+        .ifEmpty { if (link.isEmpty()) emptyList() else listOf(link) }
+    val now = System.currentTimeMillis()
+    val late = sentAt != null && daysLeft(sentAt, now) < 0
     val label = when {
-        b.hand -> if (noneAt != null) "NOT LISTED" else if (sentAt != null) "SENT" else "CHECK BY HAND"
+        b.hand -> if (noneAt != null) "NOT LISTED" else if (sentAt != null) dueText(sentAt, now).uppercase() else "CHECK BY HAND"
         manual -> "LISTED"
         else -> rowLabel(r, sentAt)
     }
     val labelColor = when {
-        b.hand -> if (noneAt != null || sentAt != null) Green else Amber
+        b.hand -> if (noneAt != null || (sentAt != null && !late)) Green else Amber
         manual -> Pink
         else -> statusColor(r?.status)
     }
@@ -106,7 +111,11 @@ fun BrokerRow(
             if (noneAt != null) {
                 Text("Marked not listed " + dateText(noneAt), color = Green, fontSize = 12.sp)
             } else if (sentAt != null) {
-                Text("Opt-out sent " + dateText(sentAt), color = Green, fontSize = 12.sp)
+                Text(
+                    "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
+                    color = if (late) Amber else Green, fontSize = 12.sp
+                )
+                if (late) RowButton("REPORT TO TEXAS AG") { onOpen(AG_COMPLAINT) }
             }
             RowButton("CHECK IN BROWSER") { onSearchInBrowser() }
             if (noneAt != null) {
@@ -142,9 +151,10 @@ fun BrokerRow(
             }
             if (sentAt != null && listed) {
                 Text(
-                    "Opt-out sent " + dateText(sentAt) + ". Check again in a few days to confirm.",
-                    color = Green, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)
+                    "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
+                    color = if (late) Amber else Green, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)
                 )
+                if (late) RowButton("REPORT TO TEXAS AG") { onOpen(AG_COMPLAINT) }
             }
             if (listed) {
                 if (b.optOut.isNotEmpty()) {
@@ -156,7 +166,7 @@ fun BrokerRow(
                         onOptOutInBrowser()
                     }
                 }
-                if (b.email.isNotEmpty()) RowButton("SEND EMAIL REQUEST") { onEmail(link) }
+                if (b.email.isNotEmpty()) RowButton("SEND EMAIL REQUEST") { onEmail(mine.joinToString("\n")) }
                 if (sentAt == null) RowButton("MARK AS SENT") { onMarkSent() }
             }
             if (manual) RowButton("NO LONGER LISTED") { onSetManual(false) }
@@ -186,9 +196,12 @@ fun FormRow(
     onBrowser: () -> Unit,
     onEmail: () -> Unit,
     onFind: () -> Unit,
+    onReport: () -> Unit,
     onMarkSent: () -> Unit,
     onSetNone: (Boolean) -> Unit
 ) {
+    val now = System.currentTimeMillis()
+    val late = sentAt != null && daysLeft(sentAt, now) < 0
     Column(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(10.dp))
             .background(Panel).padding(12.dp)
@@ -196,8 +209,9 @@ fun FormRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(b.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Text(
-                if (noneAt != null) "NOT LISTED" else if (sentAt != null) "SENT" else "NOT SENT",
-                color = if (noneAt != null || sentAt != null) Green else Dim, fontSize = 12.sp, fontFamily = Mono
+                if (noneAt != null) "NOT LISTED" else if (sentAt != null) dueText(sentAt, now).uppercase() else "NOT SENT",
+                color = if (noneAt != null) Green else if (sentAt != null) (if (late) Amber else Green) else Dim,
+                fontSize = 12.sp, fontFamily = Mono
             )
         }
         if (b.tip.isNotEmpty()) Text(b.tip, color = Dim, fontSize = 12.sp)
@@ -210,15 +224,19 @@ fun FormRow(
             RowButton("UNDO NOT LISTED") { onSetNone(false) }
         } else if (sentAt != null) {
             Text(
-                "Opt-out sent " + dateText(sentAt), color = Green, fontSize = 12.sp,
+                "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
+                color = if (late) Amber else Green, fontSize = 12.sp,
                 modifier = Modifier.padding(top = 6.dp)
             )
+            if (late) RowButton("REPORT TO TEXAS AG") { onReport() }
             if (b.find.isNotEmpty()) RowButton("FIND ME ON THIS SITE") { onFind() }
             if (b.optOut.isNotEmpty()) {
                 RowButtonPair(
                     "OPT-OUT AGAIN", { if (b.browser) onBrowser() else onOptOut() },
                     "NOT LISTED", { onSetNone(true) }
                 )
+            } else if (b.email.isNotEmpty()) {
+                RowButtonPair("EMAIL AGAIN", onEmail, "NOT LISTED", { onSetNone(true) })
             } else {
                 RowButton("NOT LISTED") { onSetNone(true) }
             }

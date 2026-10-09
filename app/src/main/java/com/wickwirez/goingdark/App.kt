@@ -23,6 +23,7 @@ fun GoingDarkApp() {
     var screen by remember { mutableStateOf(if (profile.ready) Screen.HOME else Screen.PROFILE) }
     var target by remember { mutableStateOf<Broker?>(null) }
     var targetUrl by remember { mutableStateOf("") }
+    var todoOnly by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     val save: () -> Unit = { Store.saveSent(ctx, sent.toMap()) }
@@ -74,6 +75,8 @@ fun GoingDarkApp() {
                 )
                 else -> HomeScreen(
                     brokers, results, sent, profile, listState,
+                    todoOnly = todoOnly,
+                    onTodoToggle = { todoOnly = !todoOnly },
                     onScan = { screen = Screen.SCAN },
                     onProfile = { screen = Screen.PROFILE },
                     onOptOut = { b, url ->
