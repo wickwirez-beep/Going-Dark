@@ -34,6 +34,19 @@ class MainActivity : ComponentActivity() {
         val bars = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         setContent { GoingDarkApp() }
+        try {
+            Alerts.schedule(this)
+            Alerts.askOnce(this)
+        } catch (e: Exception) {
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        try {
+            Alerts.welcome(this)
+        } catch (e: Exception) {
+        }
     }
 }
 

@@ -253,6 +253,47 @@ data class Broker(
         return sb.toString()
     }
 
+    // For a company that wants a copy of your ID before it will act. Texas law lets it ask only for what it needs.
+    fun noIdMailto(p: Profile, sentAt: Long, listingUrl: String): String = "mailto:" + email +
+        "?subject=" + Uri.encode(noIdSubject(p)) + "&body=" + Uri.encode(noIdBody(p, sentAt, listingUrl))
+
+    fun noIdSubject(p: Profile): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        return if (p.state.trim().uppercase() == "TX") "My data deletion request, without a copy of my ID (Texas resident) - " + who
+        else "My opt-out request, without a copy of my ID - " + who
+    }
+
+    fun noIdBody(p: Profile, sentAt: Long, listingUrl: String): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        val texas = p.state.trim().uppercase() == "TX"
+        val sb = StringBuilder()
+        sb.append("Hello,\n\n")
+        sb.append("On ").append(dateText(sentAt)).append(" I asked ").append(company())
+        if (texas) {
+            sb.append(" to delete my personal data and to opt me out of its sale, targeted advertising and profiling, ")
+            sb.append("under the Texas Data Privacy and Security Act (Texas Business and Commerce Code, Section 541.051). ")
+        } else {
+            sb.append(" to opt me out and delete or suppress every record about me. ")
+        }
+        sb.append("You asked me for a copy of my ID before you will act on it.\n\n")
+        sb.append("I will not send a copy of my ID. ")
+        if (texas) {
+            sb.append("Section 541.052(e) lets you ask only for additional information that is reasonably necessary to ")
+            sb.append("authenticate me and my request. ")
+        }
+        sb.append("A copy of my ID is not necessary to delete or suppress a record you already hold: the details below are ")
+        sb.append("enough to find it, and you can reach me at ")
+        sb.append(if (p.email.isNotBlank()) "the email address below" else "this email address")
+        sb.append(". Sending you my ID would only give you more of my personal data.\n\n")
+        sb.append("Please complete my request with these details. If you still need something, tell me exactly what, other ")
+        sb.append("than an ID.")
+        if (texas) sb.append(" Section 541.052(b) still requires a response within 45 days of receiving my request.")
+        sb.append("\n\n")
+        details(sb, p, listingUrl)
+        sb.append("\nThank you,\n").append(who)
+        return sb.toString()
+    }
+
     // For a site that dropped your listing and then put it back.
     fun repeatMailto(p: Profile, sentAt: Long, goneAt: Long, backAt: Long, listingUrl: String): String = "mailto:" + email +
         "?subject=" + Uri.encode(repeatSubject(p)) + "&body=" + Uri.encode(repeatBody(p, sentAt, goneAt, backAt, listingUrl))
@@ -444,6 +485,30 @@ fun requestText(p: Profile): String {
         "Please confirm by email when this is done."
     return if (p.state.trim().uppercase() == "TX") "I am a Texas resident. Under the Texas Data Privacy and Security Act, $ask"
     else ask.replaceFirstChar { it.uppercase() }
+}
+
+// Google searches that turn up sites listing you that this app does not know about.
+fun googleNameUrl(p: Profile): String {
+    val q = "\"" + p.first.trim() + " " + p.last.trim() + "\" \"" + p.city.trim() + "\""
+    return "https://www.google.com/search?q=" + URLEncoder.encode(q, "UTF-8")
+}
+
+// Your number as 10 digits, or "" when it is not a 10-digit US number.
+fun phoneDigits(p: Profile): String {
+    val d = p.phone.filter { it in '0'..'9' }
+    val ten = if (d.length == 11 && d.startsWith("1")) d.substring(1) else d
+    return if (ten.length == 10) ten else ""
+}
+
+// Looks for your number written the three ways people-search sites write it.
+fun googlePhoneUrl(p: Profile): String {
+    val d = phoneDigits(p)
+    if (d.isEmpty()) return ""
+    val a = d.substring(0, 3)
+    val b = d.substring(3, 6)
+    val c = d.substring(6)
+    val q = "\"$a-$b-$c\" OR \"($a) $b-$c\" OR \"$a.$b.$c\""
+    return "https://www.google.com/search?q=" + URLEncoder.encode(q, "UTF-8")
 }
 
 fun loadBrokers(ctx: Context): List<Broker> {

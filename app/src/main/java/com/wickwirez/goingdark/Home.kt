@@ -58,6 +58,7 @@ fun HomeScreen(
     shownForms.forEachIndexed { i, b -> if (needsAction(b, results, sent, now)) todoAt.add(2 + shownSites.size + i) }
     val scope = rememberCoroutineScope()
     val complaintCopied = "Complaint copied. Paste it into the description box on the AG's form."
+    val next = nextDeadline(brokers, results, sent, now)
     // Copies a ready-made complaint, then opens the Texas Attorney General's form to paste it into.
     val report: (Broker, String) -> Unit = { b, links ->
         val t = System.currentTimeMillis()
@@ -77,6 +78,17 @@ fun HomeScreen(
             Toast.makeText(ctx, "Appeal copied. Paste it into a reply to their refusal, or into their appeal form.", Toast.LENGTH_LONG).show()
         }
         onAppeal(b)
+    }
+    // Copies a reply that refuses to send ID, and opens it as an email when the company has an address.
+    val noId: (Broker, String) -> Unit = { b, links ->
+        val first = firstSent(sent, b.id) ?: System.currentTimeMillis()
+        copyText(ctx, "Reply", b.noIdBody(profile, first, links))
+        if (b.email.isNotEmpty()) {
+            Toast.makeText(ctx, "Reply copied too. If they asked by email, you can paste it into a reply instead.", Toast.LENGTH_LONG).show()
+            onExternal(b.noIdMailto(profile, first, links))
+        } else {
+            Toast.makeText(ctx, "Reply copied. Paste it into a reply to their email, or into their form.", Toast.LENGTH_LONG).show()
+        }
     }
     val appealReport: (Broker, String, Boolean) -> Unit = { b, links, denied ->
         val t = System.currentTimeMillis()
@@ -103,6 +115,10 @@ fun HomeScreen(
                 Stat(scanned - listed - clear, "UNVERIFIED", Amber, Modifier.weight(1f))
                 Stat(scanList.size - scanned, "NOT SCANNED", Dim, Modifier.weight(1f))
             }
+            if (next != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(nextDeadlineText(next), color = Ink, fontSize = 13.sp)
+            }
             Spacer(Modifier.height(10.dp))
             TimerPanel(sent, onTimerToggle, onTimerAdjust, onTimerExpire)
             Spacer(Modifier.height(10.dp))
@@ -127,6 +143,17 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)
             ) {
                 Text("COPY REPORT", fontFamily = Mono)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Find sites this app does not know about:", color = Dim, fontSize = 12.sp)
+            val phoneSearch = googlePhoneUrl(profile)
+            if (phoneSearch.isNotEmpty()) {
+                RowButtonPair(
+                    "GOOGLE NAME", { onExternal(googleNameUrl(profile)) },
+                    "GOOGLE PHONE", { onExternal(phoneSearch) }
+                )
+            } else {
+                RowButton("GOOGLE MY NAME") { onExternal(googleNameUrl(profile)) }
             }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
@@ -159,6 +186,7 @@ fun HomeScreen(
                     val t = System.currentTimeMillis()
                     onExternal(b.finalMailto(profile, first ?: t, t, url.ifEmpty { clipLink(ctx, b) }))
                 },
+                onNoId = { url -> noId(b, url.ifEmpty { clipLink(ctx, b) }) },
                 onAppeal = { url -> appeal(b, url.ifEmpty { clipLink(ctx, b) }) },
                 onUndoAppeal = { onUndoAppeal(b) },
                 onAppealReport = { url, denied -> appealReport(b, url.ifEmpty { clipLink(ctx, b) }, denied) },
@@ -202,6 +230,7 @@ fun HomeScreen(
                 },
                 onMarkSent = { onMarkSent(b) },
                 onSetNone = { on -> onSetNone(b, on) },
+                onNoId = { noId(b, clipLink(ctx, b)) },
                 onAppeal = { appeal(b, clipLink(ctx, b)) },
                 onUndoAppeal = { onUndoAppeal(b) },
                 onAppealReport = { denied -> appealReport(b, clipLink(ctx, b), denied) }

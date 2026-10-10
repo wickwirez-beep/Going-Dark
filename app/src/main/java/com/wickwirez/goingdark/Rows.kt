@@ -60,17 +60,19 @@ fun RowButtonPair(left: String, onLeft: () -> Unit, right: String, onRight: () -
     }
 }
 
-// For a request you have sent: appeal a refusal, then take a denied or ignored appeal to the Attorney General.
+// For a request you have sent: push back when they want your ID, appeal a refusal, then take a denied or ignored
+// appeal to the Attorney General.
 @Composable
 fun AppealBlock(
     appealAt: Long?,
     now: Long,
+    onNoId: () -> Unit,
     onAppeal: () -> Unit,
     onUndoAppeal: () -> Unit,
     onAppealReport: (Boolean) -> Unit
 ) {
     if (appealAt == null) {
-        RowButton("THEY REFUSED: APPEAL") { onAppeal() }
+        RowButtonPair("THEY WANT ID", onNoId, "THEY SAID NO", onAppeal)
     } else {
         val late = appealDaysLeft(appealAt, now) < 0
         Text(
@@ -108,6 +110,7 @@ fun BrokerRow(
     onSetNone: (Boolean) -> Unit,
     onReport: (String) -> Unit,
     onFinal: (String) -> Unit,
+    onNoId: (String) -> Unit,
     onAppeal: (String) -> Unit,
     onUndoAppeal: () -> Unit,
     onAppealReport: (String, Boolean) -> Unit,
@@ -170,7 +173,10 @@ fun BrokerRow(
                     RowButtonPair("MARK AS SENT", onMarkSent, "NOT LISTED", { onSetNone(true) })
                 } else {
                     RowButton("NOT LISTED") { onSetNone(true) }
-                    AppealBlock(appealAt, now, { onAppeal("") }, onUndoAppeal, { denied -> onAppealReport("", denied) })
+                    AppealBlock(
+                        appealAt, now, { onNoId("") }, { onAppeal("") }, onUndoAppeal,
+                        { denied -> onAppealReport("", denied) }
+                    )
                 }
             }
         } else {
@@ -229,7 +235,10 @@ fun BrokerRow(
                 if (b.email.isNotEmpty()) RowButton("SEND EMAIL REQUEST") { onEmail(links) }
                 if (sentAt == null) RowButton("MARK AS SENT") { onMarkSent() }
                 if (sentAt != null) {
-                    AppealBlock(appealAt, now, { onAppeal(links) }, onUndoAppeal, { denied -> onAppealReport(links, denied) })
+                    AppealBlock(
+                        appealAt, now, { onNoId(links) }, { onAppeal(links) }, onUndoAppeal,
+                        { denied -> onAppealReport(links, denied) }
+                    )
                 }
             }
             if (manual) RowButton("NO LONGER LISTED") { onSetManual(false) }
@@ -265,6 +274,7 @@ fun FormRow(
     onFinal: () -> Unit,
     onMarkSent: () -> Unit,
     onSetNone: (Boolean) -> Unit,
+    onNoId: () -> Unit,
     onAppeal: () -> Unit,
     onUndoAppeal: () -> Unit,
     onAppealReport: (Boolean) -> Unit
@@ -325,7 +335,7 @@ fun FormRow(
             } else {
                 RowButton("NOT LISTED") { onSetNone(true) }
             }
-            if (!b.tool) AppealBlock(appealAt, now, onAppeal, onUndoAppeal, onAppealReport)
+            if (!b.tool) AppealBlock(appealAt, now, onNoId, onAppeal, onUndoAppeal, onAppealReport)
         } else {
             if (b.find.isNotEmpty()) RowButton("FIND ME ON THIS SITE", primary = true) { onFind() }
             if (b.optOut.isNotEmpty()) {

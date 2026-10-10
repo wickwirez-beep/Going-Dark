@@ -1,6 +1,7 @@
 package com.wickwirez.goingdark
 
 import android.webkit.WebView
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -18,16 +19,42 @@ import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 
-// Types a value into whichever box is focused on the page.
+// Types a value into the box you tapped on the page, looking inside frames and page parts it can reach. When focus
+// has left the page, it uses the box you tapped last (autofill.js remembers it). Returns 'ok', or why it could not:
+// then the chip copies the value for you to paste.
 fun insertJs(value: String): String =
-    "(function(v){var el=document.activeElement;" +
-        "if(!el||!(el.tagName==='INPUT'||el.tagName==='TEXTAREA'))return 'nofocus';" +
-        "var p=el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;" +
+    "(function(v){" +
+        "var NOT=['hidden','checkbox','radio','submit','button','file','image','reset','range','color'];" +
+        "function box(e){if(!e||!e.tagName)return false;" +
+        "if(e.tagName==='TEXTAREA')return true;" +
+        "if(e.tagName==='INPUT')return NOT.indexOf((e.type||'text').toLowerCase())<0;" +
+        "return !!e.isContentEditable;}" +
+        "var el=document.activeElement;" +
+        "try{for(var i=0;i<20&&el;i++){" +
+        "if(el.shadowRoot&&el.shadowRoot.activeElement){el=el.shadowRoot.activeElement;continue;}" +
+        "if((el.tagName==='IFRAME'||el.tagName==='FRAME')&&el.contentDocument){" +
+        "var inner=el.contentDocument.activeElement;" +
+        "if(inner&&inner!==el.contentDocument.body){el=inner;continue;}}" +
+        "break;}}catch(x){}" +
+        "if(el&&(el.tagName==='IFRAME'||el.tagName==='FRAME'))return 'frame';" +
+        "if(!box(el)){" +
+        "if(el&&el!==document.body&&el!==document.documentElement)return 'nofocus';" +
+        "var last=window.__gdLast;" +
+        "if(!(last&&last.isConnected&&box(last)))return 'nofocus';" +
+        "el=last;}" +
+        "if(el.disabled||el.readOnly)return 'locked';" +
+        "try{el.focus();}catch(x){}" +
+        "if(el.tagName!=='INPUT'&&el.tagName!=='TEXTAREA'){" +
+        "var r=false;try{r=el.ownerDocument.execCommand('insertText',false,v);}catch(x){}" +
+        "if(!r)el.textContent=v;" +
+        "el.dispatchEvent(new Event('input',{bubbles:true}));return 'ok';}" +
+        "var w=(el.ownerDocument&&el.ownerDocument.defaultView)||window;" +
+        "var p=el.tagName==='TEXTAREA'?w.HTMLTextAreaElement.prototype:w.HTMLInputElement.prototype;" +
         "var d=Object.getOwnPropertyDescriptor(p,'value');" +
         "if(d&&d.set)d.set.call(el,v);else el.value=v;" +
         "['keydown','keypress','input','keyup','change'].forEach(function(n){" +
-        "el.dispatchEvent(new Event(n,{bubbles:true}));});" +
-        "return 'ok';})(" + JSONObject.quote(value) + ")"
+        "el.dispatchEvent(new w.Event(n,{bubbles:true}));});" +
+        "return el.value?'ok':'refused';})(" + JSONObject.quote(value) + ")"
 
 @Composable
 fun ScanScreen(
@@ -191,7 +218,14 @@ fun OptOutScreen(
         ) {
             for (chip in chips) {
                 OutlinedButton(
-                    onClick = { webView.evaluateJavascript(insertJs(chip.second), null) },
+                    onClick = {
+                        webView.evaluateJavascript(insertJs(chip.second)) { r ->
+                            if (r != "\"ok\"") {
+                                copyText(ctx, chip.first, chip.second)
+                                Toast.makeText(ctx, chip.first + " copied. Press and hold the box, then tap Paste.", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Text(chip.first, fontSize = 12.sp)
@@ -200,7 +234,15 @@ fun OptOutScreen(
         }
         val pad = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onSent, modifier = Modifier.weight(1f), contentPadding = pad) {
+            Button(
+                onClick = {
+                    if (saveProof(ctx, webView, broker)) {
+                        Toast.makeText(ctx, "Proof saved to your Gallery, album " + PROOF_ALBUM, Toast.LENGTH_SHORT).show()
+                    }
+                    onSent()
+                },
+                modifier = Modifier.weight(1f), contentPadding = pad
+            ) {
                 Text(if (broker.tool) "MARK AS DONE" else "MARK AS SENT")
             }
             if (broker.search.isEmpty()) {

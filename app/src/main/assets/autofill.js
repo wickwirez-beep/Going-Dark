@@ -16,6 +16,18 @@ function (P) {
       }
     }, true);
   }
+  // The box you tapped last, so a chip still knows where to type after focus leaves the page.
+  if (!window.__gdFocus) {
+    window.__gdFocus = true;
+    document.addEventListener('focusin', function (e) {
+      try {
+        var path = e.composedPath ? e.composedPath() : [];
+        var t = path.length ? path[0] : e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) window.__gdLast = t;
+      } catch (x) {
+      }
+    }, true);
+  }
   function mine(el) {
     return el.getAttribute('data-gd-mine') === keyOf(el);
   }
