@@ -49,6 +49,13 @@ fun HomeScreen(
     val todoCount = brokers.count { needsAction(it, results, sent, now) }
     val shownSites = if (todoOnly) siteRows.filter { needsAction(it, results, sent, now) } else siteRows
     val shownForms = if (todoOnly) formOnly.filter { needsAction(it, results, sent, now) } else formOnly
+    // Copies a ready-made complaint, then opens the Texas Attorney General's form to paste it into.
+    val report: (Broker, String) -> Unit = { b, links ->
+        val t = System.currentTimeMillis()
+        copyText(ctx, "Complaint", b.complaintText(profile, sent[b.id] ?: t, t, links))
+        Toast.makeText(ctx, "Complaint copied. Paste it into the description box on the AG's form.", Toast.LENGTH_LONG).show()
+        onExternal(AG_COMPLAINT)
+    }
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp), state = listState) {
         item {
             Spacer(Modifier.height(18.dp))
@@ -107,10 +114,15 @@ fun HomeScreen(
                 onOptOut = { url -> onOptOut(b, url) },
                 onSearchInBrowser = { onExternal(b.buildUrl(profile)) },
                 onOptOutInBrowser = { onExternal(b.optOut) },
-                onEmail = { url -> onExternal(b.mailto(profile, url)) },
+                onEmail = { url -> onExternal(b.mailto(profile, url.ifEmpty { clipLink(ctx, b) })) },
                 onMarkSent = { onMarkSent(b) },
                 onSetManual = { on -> onSetManual(b, on) },
-                onSetNone = { on -> onSetNone(b, on) }
+                onSetNone = { on -> onSetNone(b, on) },
+                onReport = { url -> report(b, url.ifEmpty { clipLink(ctx, b) }) },
+                onFinal = { url ->
+                    val t = System.currentTimeMillis()
+                    onExternal(b.finalMailto(profile, sent[b.id] ?: t, t, url.ifEmpty { clipLink(ctx, b) }))
+                }
             )
         }
         item {
@@ -128,9 +140,17 @@ fun HomeScreen(
                 b, sent[b.id], sent[noneKey(b.id)],
                 onOptOut = { onOptOut(b, "") },
                 onBrowser = { onExternal(b.optOut) },
-                onEmail = { onExternal(b.mailto(profile, "")) },
+                onEmail = {
+                    val link = clipLink(ctx, b)
+                    if (link.isNotEmpty()) Toast.makeText(ctx, "Your copied link is in the email", Toast.LENGTH_SHORT).show()
+                    onExternal(b.mailto(profile, link))
+                },
                 onFind = { onExternal(b.findUrl(profile)) },
-                onReport = { onExternal(AG_COMPLAINT) },
+                onReport = { report(b, clipLink(ctx, b)) },
+                onFinal = {
+                    val t = System.currentTimeMillis()
+                    onExternal(b.finalMailto(profile, sent[b.id] ?: t, t, clipLink(ctx, b)))
+                },
                 onMarkSent = { onMarkSent(b) },
                 onSetNone = { on -> onSetNone(b, on) }
             )

@@ -119,7 +119,9 @@ data class Broker(
     val browser: Boolean = false,
     val find: String = "",
     // Phone lookup sites need your number to find you, so their emails include it.
-    val sendPhone: Boolean = false
+    val sendPhone: Boolean = false,
+    // Not a company that owes you an answer (Do Not Call, Google tools), so no 45-day countdown.
+    val tool: Boolean = false
 ) {
     fun buildUrl(p: Profile): String = fill(search, p)
 
@@ -159,10 +161,7 @@ data class Broker(
 
     fun mailBody(p: Profile, listingUrl: String): String {
         val who = p.first.trim() + " " + p.last.trim()
-        val full = listOf(p.first.trim(), p.middle.trim(), p.last.trim())
-            .filter { it.isNotEmpty() }.joinToString(" ")
-        val company = name.replace(Regex("\\s*\\(.*\\)\\s*$"), "")
-        val links = listingUrl.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        val company = company()
         val texas = p.state.trim().uppercase() == "TX"
         val sb = StringBuilder()
         sb.append("Hello,\n\n")
@@ -177,6 +176,71 @@ data class Broker(
             sb.append("Please opt me out and delete or suppress every record about me on ")
             sb.append(company).append(" and any related sites you operate.\n\n")
         }
+        details(sb, p, listingUrl)
+        sb.append("\n")
+        if (texas) sb.append("Section 541.052 requires a response within 45 days of receiving this request. ")
+        sb.append("Please confirm by email once this is done.\n\nThank you,\n").append(who)
+        return sb.toString()
+    }
+
+    // For a company that let the 45 days run out.
+    fun finalMailto(p: Profile, sentAt: Long, now: Long, listingUrl: String): String = "mailto:" + email +
+        "?subject=" + Uri.encode(finalSubject(p)) + "&body=" + Uri.encode(finalBody(p, sentAt, now, listingUrl))
+
+    fun finalSubject(p: Profile): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        return if (p.state.trim().uppercase() == "TX") "Final notice: data deletion request (Texas resident) - " + who
+        else "Second request: opt-out request - " + who
+    }
+
+    fun finalBody(p: Profile, sentAt: Long, now: Long, listingUrl: String): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        val texas = p.state.trim().uppercase() == "TX"
+        val sb = StringBuilder()
+        sb.append("Hello,\n\n")
+        sb.append("On ").append(dateText(sentAt)).append(" I asked ").append(company())
+        if (texas) {
+            sb.append(" to delete my personal data and to opt me out of its sale, targeted advertising and profiling, ")
+            sb.append("under the Texas Data Privacy and Security Act (Texas Business and Commerce Code, Section 541.051).\n\n")
+            sb.append("Section 541.052 required you to respond within 45 days. That deadline passed on ")
+            sb.append(dateText(dueAt(sentAt))).append(", and I have not received a response.\n\n")
+            sb.append("Please complete my request now and confirm by email. If I do not hear from you, I will file ")
+            sb.append("a complaint with the Office of the Texas Attorney General, which enforces the Act.\n\n")
+        } else {
+            sb.append(" to opt me out and delete or suppress every record about me. I have not received a response.\n\n")
+            sb.append("Please complete my request now and confirm by email.\n\n")
+        }
+        details(sb, p, listingUrl)
+        sb.append("\nThank you,\n").append(who)
+        return sb.toString()
+    }
+
+    // Ready to paste into the description box of the Texas Attorney General's complaint form.
+    fun complaintText(p: Profile, sentAt: Long, now: Long, listingUrl: String): String {
+        val links = splitLinks(listingUrl)
+        val late = -daysLeft(sentAt, now)
+        val site = site()
+        val sb = StringBuilder()
+        if (p.state.trim().uppercase() == "TX") sb.append("I am a Texas resident. ")
+        sb.append("On ").append(dateText(sentAt)).append(" I sent ").append(company())
+        if (site.isNotEmpty()) sb.append(" (").append(site).append(")")
+        sb.append(" a request under the Texas Data Privacy and Security Act to delete my personal data and to opt me ")
+        sb.append("out of its sale, targeted advertising and profiling. Section 541.052 required a response within ")
+        sb.append("45 days, by ").append(dateText(dueAt(sentAt))).append(". As of ").append(dateText(now)).append(", ")
+        sb.append(if (late == 1) "1 day" else "$late days")
+        sb.append(" after that deadline, I have not received a response and my request has not been completed.")
+        if (links.size == 1) sb.append(" My information is still listed at ").append(links[0])
+        if (links.size > 1) {
+            sb.append(" My information is still listed at these pages:")
+            for (l in links) sb.append("\n").append(l)
+        }
+        return sb.toString()
+    }
+
+    private fun details(sb: StringBuilder, p: Profile, listingUrl: String) {
+        val full = listOf(p.first.trim(), p.middle.trim(), p.last.trim())
+            .filter { it.isNotEmpty() }.joinToString(" ")
+        val links = splitLinks(listingUrl)
         sb.append("Name: ").append(full).append("\n")
         sb.append("Location: ").append(p.city.trim()).append(", ")
             .append(p.state.trim().uppercase()).append("\n")
@@ -187,11 +251,66 @@ data class Broker(
             sb.append("Listings:\n")
             for (l in links) sb.append(l).append("\n")
         }
-        sb.append("\n")
-        if (texas) sb.append("Section 541.052 requires a response within 45 days of receiving this request. ")
-        sb.append("Please confirm by email once this is done.\n\nThank you,\n").append(who)
-        return sb.toString()
     }
+
+    // The company's name without the note in brackets.
+    fun company(): String = name.replace(Regex("\\s*\\(.*\\)\\s*$"), "")
+
+    // The websites this company runs, taken from its links and email address.
+    fun sites(): Set<String> {
+        val out = LinkedHashSet<String>()
+        val at = email.substringAfter('@', "")
+        for (h in listOf(hostOf(search), hostOf(find), at, hostOf(optOut))) {
+            val d = baseDomain(h)
+            if (d.isNotEmpty() && d !in FORM_HOSTS) out.add(d)
+        }
+        return out
+    }
+
+    fun site(): String = sites().firstOrNull() ?: ""
+
+    // True for a single link to one of this company's own sites, like a copied listing.
+    fun isOwnLink(text: String): Boolean {
+        val t = text.trim()
+        if (!(t.startsWith("https://") || t.startsWith("http://"))) return false
+        if (t.any { it.isWhitespace() }) return false
+        val d = baseDomain(hostOf(t))
+        return d.isNotEmpty() && d in sites()
+    }
+}
+
+// Opt-out forms hosted by these services say nothing about whose site it is.
+val FORM_HOSTS = setOf("onetrust.com", "trustarc.eu", "trustarc.com", "zendesk.com", "consumerprivacyinfo.com")
+
+fun hostOf(url: String): String {
+    val u = url.trim()
+    val i = u.indexOf("://")
+    if (i < 0) return ""
+    val rest = u.substring(i + 3)
+    val end = rest.indexOfFirst { it == '/' || it == '?' || it == '#' || it == ':' }
+    return (if (end < 0) rest else rest.substring(0, end)).lowercase()
+}
+
+// tx.veripages.com and www.veripages.com both become veripages.com.
+fun baseDomain(host: String): String {
+    val parts = host.lowercase().trim().split('.').filter { it.isNotEmpty() }
+    return if (parts.size < 2) "" else parts[parts.size - 2] + "." + parts[parts.size - 1]
+}
+
+fun splitLinks(listingUrl: String): List<String> =
+    listingUrl.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+
+fun dueAt(sentAt: Long): Long = sentAt + REPLY_DAYS * DAY_MS
+
+// Chip texts for the opt-out screen, so subject and message boxes need no typing.
+fun subjectText(p: Profile): String =
+    if (p.state.trim().uppercase() == "TX") "Data deletion request (Texas resident)" else "Data deletion request"
+
+fun requestText(p: Profile): String {
+    val ask = "please delete all personal data you hold about me and stop selling or sharing it. " +
+        "Please confirm by email when this is done."
+    return if (p.state.trim().uppercase() == "TX") "I am a Texas resident. Under the Texas Data Privacy and Security Act, $ask"
+    else ask.replaceFirstChar { it.uppercase() }
 }
 
 fun loadBrokers(ctx: Context): List<Broker> {
@@ -212,7 +331,7 @@ fun loadBrokers(ctx: Context): List<Broker> {
                         id, o.getString("name"), o.optString("search"),
                         o.optString("optOut"), o.optString("ua"), o.optString("tip"),
                         o.optString("email"), o.optBoolean("hand"), o.optBoolean("browser"),
-                        o.optString("find"), o.optBoolean("sendPhone")
+                        o.optString("find"), o.optBoolean("sendPhone"), o.optBoolean("tool")
                     )
                 )
             }

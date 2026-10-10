@@ -124,6 +124,8 @@ fun OptOutScreen(
     val chips = remember(profile, listingUrl) {
         listOf(
             "Email" to profile.email.trim(),
+            "Request" to requestText(profile),
+            "Subject" to subjectText(profile),
             "First" to profile.first.trim(),
             "Middle" to profile.middle.trim(),
             "Last" to profile.last.trim(),
@@ -199,7 +201,7 @@ fun OptOutScreen(
         val pad = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onSent, modifier = Modifier.weight(1f), contentPadding = pad) {
-                Text("MARK AS SENT")
+                Text(if (broker.tool) "MARK AS DONE" else "MARK AS SENT")
             }
             if (broker.search.isEmpty()) {
                 OutlinedButton(onClick = onNone, modifier = Modifier.weight(1f), contentPadding = pad) {

@@ -101,7 +101,18 @@ fun needsAction(b: Broker, results: Map<String, BrokerResult>, sent: Map<String,
     val scanRow = b.search.isNotEmpty() && !b.hand
     if (scanRow && sent[manualKey(b.id)] == null && results[b.id]?.status == Status.CLEAR) return false
     val sentAt = sent[b.id] ?: return true
-    return daysLeft(sentAt, now) < 0
+    return !b.tool && daysLeft(sentAt, now) < 0
+}
+
+// A link you copied from this company's own site, so the email can include your listing.
+fun clipLink(ctx: Context, b: Broker): String {
+    val text = try {
+        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString() ?: ""
+    } catch (e: Exception) {
+        ""
+    }
+    return if (b.isOwnLink(text)) text.trim() else ""
 }
 
 fun openUrl(ctx: Context, url: String) {
@@ -133,13 +144,15 @@ fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent:
     for (b in brokers) {
         val sentAt = sent[b.id]
         val none = sent[noneKey(b.id)] != null
-        val mark = if (sentAt != null) " [opt-out sent]" else ""
-        val markDue = if (sentAt != null) " [opt-out sent, " + dueText(sentAt, now) + "]" else ""
+        val sentOn = if (sentAt != null) "opt-out sent " + dateText(sentAt) else ""
+        val mark = if (sentAt != null) " [$sentOn]" else ""
+        val markDue = if (sentAt != null) " [$sentOn, " + dueText(sentAt, now) + "]" else ""
         sb.append(b.name).append(": ")
         if (b.search.isEmpty()) {
             sb.append(
                 if (none) "not listed"
-                else if (sentAt != null) "opt-out sent, " + dueText(sentAt, now)
+                else if (b.tool) (if (sentAt != null) "done " + dateText(sentAt) else "not done")
+                else if (sentAt != null) sentOn + ", " + dueText(sentAt, now)
                 else "opt-out not sent"
             )
         } else if (b.hand) {

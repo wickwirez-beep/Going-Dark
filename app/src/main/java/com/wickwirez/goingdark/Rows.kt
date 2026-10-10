@@ -74,7 +74,9 @@ fun BrokerRow(
     onEmail: (String) -> Unit,
     onMarkSent: () -> Unit,
     onSetManual: (Boolean) -> Unit,
-    onSetNone: (Boolean) -> Unit
+    onSetNone: (Boolean) -> Unit,
+    onReport: (String) -> Unit,
+    onFinal: (String) -> Unit
 ) {
     val ctx = LocalContext.current
     val listed = manual || (r != null && r.status == Status.LISTED)
@@ -115,7 +117,10 @@ fun BrokerRow(
                     "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
                     color = if (late) Amber else Green, fontSize = 12.sp
                 )
-                if (late) RowButton("REPORT TO TEXAS AG") { onOpen(AG_COMPLAINT) }
+                if (late) {
+                    RowButton("REPORT TO TEXAS AG") { onReport("") }
+                    if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal("") }
+                }
             }
             RowButton("CHECK IN BROWSER") { onSearchInBrowser() }
             if (noneAt != null) {
@@ -154,7 +159,10 @@ fun BrokerRow(
                     "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
                     color = if (late) Amber else Green, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)
                 )
-                if (late) RowButton("REPORT TO TEXAS AG") { onOpen(AG_COMPLAINT) }
+                if (late) {
+                    RowButton("REPORT TO TEXAS AG") { onReport(mine.joinToString("\n")) }
+                    if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal(mine.joinToString("\n")) }
+                }
             }
             if (listed) {
                 if (b.optOut.isNotEmpty()) {
@@ -197,11 +205,13 @@ fun FormRow(
     onEmail: () -> Unit,
     onFind: () -> Unit,
     onReport: () -> Unit,
+    onFinal: () -> Unit,
     onMarkSent: () -> Unit,
     onSetNone: (Boolean) -> Unit
 ) {
     val now = System.currentTimeMillis()
-    val late = sentAt != null && daysLeft(sentAt, now) < 0
+    val late = !b.tool && sentAt != null && daysLeft(sentAt, now) < 0
+    val markText = if (b.tool) "MARK AS DONE" else "MARK AS SENT"
     Column(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(10.dp))
             .background(Panel).padding(12.dp)
@@ -209,7 +219,9 @@ fun FormRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(b.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Text(
-                if (noneAt != null) "NOT LISTED" else if (sentAt != null) dueText(sentAt, now).uppercase() else "NOT SENT",
+                if (noneAt != null) "NOT LISTED"
+                else if (sentAt != null) (if (b.tool) "DONE" else dueText(sentAt, now).uppercase())
+                else if (b.tool) "NOT DONE" else "NOT SENT",
                 color = if (noneAt != null) Green else if (sentAt != null) (if (late) Amber else Green) else Dim,
                 fontSize = 12.sp, fontFamily = Mono
             )
@@ -224,15 +236,19 @@ fun FormRow(
             RowButton("UNDO NOT LISTED") { onSetNone(false) }
         } else if (sentAt != null) {
             Text(
-                "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
+                if (b.tool) "Done " + dateText(sentAt) + "."
+                else "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
                 color = if (late) Amber else Green, fontSize = 12.sp,
                 modifier = Modifier.padding(top = 6.dp)
             )
-            if (late) RowButton("REPORT TO TEXAS AG") { onReport() }
+            if (late) {
+                RowButton("REPORT TO TEXAS AG") { onReport() }
+                if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal() }
+            }
             if (b.find.isNotEmpty()) RowButton("FIND ME ON THIS SITE") { onFind() }
             if (b.optOut.isNotEmpty()) {
                 RowButtonPair(
-                    "OPT-OUT AGAIN", { if (b.browser) onBrowser() else onOptOut() },
+                    if (b.tool) "OPEN AGAIN" else "OPT-OUT AGAIN", { if (b.browser) onBrowser() else onOptOut() },
                     "NOT LISTED", { onSetNone(true) }
                 )
             } else if (b.email.isNotEmpty()) {
@@ -252,7 +268,7 @@ fun FormRow(
             if (b.email.isNotEmpty()) {
                 RowButton("SEND EMAIL REQUEST", primary = b.optOut.isEmpty()) { onEmail() }
             }
-            RowButtonPair("MARK AS SENT", onMarkSent, "NOT LISTED", { onSetNone(true) })
+            RowButtonPair(markText, onMarkSent, "NOT LISTED", { onSetNone(true) })
         }
     }
 }
