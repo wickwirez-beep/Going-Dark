@@ -44,7 +44,7 @@ fun GoingDarkApp() {
                 screen == Screen.OPTOUT && t != null -> OptOutScreen(
                     t, profile, targetUrl,
                     onSent = {
-                        sent[t.id] = System.currentTimeMillis()
+                        markSent(sent, t.id, System.currentTimeMillis())
                         touch()
                         screen = Screen.HOME
                     },
@@ -70,6 +70,7 @@ fun GoingDarkApp() {
                     onResult = { r ->
                         results[r.brokerId] = r
                         Store.saveResults(ctx, results.values.toList())
+                        if (applyScan(sent, r.brokerId, r.status, r.checkedAt)) save()
                     },
                     onExit = { screen = Screen.HOME }
                 )
@@ -90,15 +91,28 @@ fun GoingDarkApp() {
                         openUrl(ctx, url)
                     },
                     onMarkSent = { b ->
-                        sent[b.id] = System.currentTimeMillis()
+                        markSent(sent, b.id, System.currentTimeMillis())
                         touch()
                     },
                     onSetManual = { b, on ->
-                        if (on) sent[manualKey(b.id)] = System.currentTimeMillis() else sent.remove(manualKey(b.id))
+                        if (on) {
+                            sent[manualKey(b.id)] = System.currentTimeMillis()
+                            forgetDrop(sent, b.id)
+                        } else {
+                            sent.remove(manualKey(b.id))
+                        }
                         save()
                     },
                     onSetNone = { b, on ->
                         if (on) sent[noneKey(b.id)] = System.currentTimeMillis() else sent.remove(noneKey(b.id))
+                        save()
+                    },
+                    onAppeal = { b ->
+                        sent[appealKey(b.id)] = System.currentTimeMillis()
+                        save()
+                    },
+                    onUndoAppeal = { b ->
+                        sent.remove(appealKey(b.id))
                         save()
                     },
                     onTimerToggle = {

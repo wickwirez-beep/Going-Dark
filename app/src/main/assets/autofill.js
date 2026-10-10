@@ -67,6 +67,8 @@ function (P) {
   // A box for a code they text or email you never gets your phone number, email or link.
   var CODE = /(^|[^a-z])otp|otp(code|input|field|token|[^a-z]|$)|totp|passcode|one[ _-]?time|(verification|verify|security|confirmation|confirm|access|auth|sms|text|login|2fa)[ _-]?code|\d[ -]?digit (code|verification|pin)|enter (the |your |a )?code|code (we|you|that|was|sent|from)|sent (you )?(a|the|your) code/;
   var CODEWORD = /(^|[^a-z])code([^a-z]|$)/;
+  // A box for your phone's advertising ID is not a phone number box.
+  var ADID = /advertis|(^|[^a-z])(maid|idfa|aaid|gaid|ad[ _-]?id)([^a-z]|$)|(device|mobile)[ _-]?id([^a-z]|$)/;
   function codeBox(el, t) {
     var max = parseInt(el.getAttribute('maxlength') || '0', 10);
     return CODE.test(t) || (max > 0 && max < 10);
@@ -91,7 +93,7 @@ function (P) {
     else if (/last|surname|family/.test(t)) { v = P.last; what = 'last name'; }
     else if (/zip|postal/.test(t)) { v = P.zip; what = 'ZIP'; }
     else if (type === 'tel' || /phone|mobile|(^|[^a-z])tel([^a-z]|$)/.test(t)) {
-      if (!code && (/phone|mobile|cell|(^|[^a-z])tel([^a-z]|$)/.test(t) || !CODEWORD.test(t))) { v = P.phone; what = 'phone'; }
+      if (!code && !ADID.test(t) && (/phone|mobile|cell|(^|[^a-z])tel([^a-z]|$)/.test(t) || !CODEWORD.test(t))) { v = P.phone; what = 'phone'; }
     }
     else if (/street|address/.test(t)) { if (!NOTSTREET.test(t)) { v = P.street; what = 'street'; } }
     else if (/city|town/.test(t)) { v = P.city; what = 'city'; }

@@ -60,13 +60,44 @@ fun RowButtonPair(left: String, onLeft: () -> Unit, right: String, onRight: () -
     }
 }
 
+// For a request you have sent: appeal a refusal, then take a denied or ignored appeal to the Attorney General.
+@Composable
+fun AppealBlock(
+    appealAt: Long?,
+    now: Long,
+    onAppeal: () -> Unit,
+    onUndoAppeal: () -> Unit,
+    onAppealReport: (Boolean) -> Unit
+) {
+    if (appealAt == null) {
+        RowButton("THEY REFUSED: APPEAL") { onAppeal() }
+    } else {
+        val late = appealDaysLeft(appealAt, now) < 0
+        Text(
+            "Appeal sent " + dateText(appealAt) + ". " + appealSentence(appealAt, now),
+            color = if (late) Amber else Green, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+        )
+        if (late) {
+            RowButton("REPORT TO TEXAS AG") { onAppealReport(false) }
+        } else {
+            RowButton("DENIED: REPORT TO TEXAS AG") { onAppealReport(true) }
+        }
+        RowButtonPair("APPEAL AGAIN", onAppeal, "UNDO APPEAL", onUndoAppeal)
+    }
+}
+
 @Composable
 fun BrokerRow(
     b: Broker,
     r: BrokerResult?,
     sentAt: Long?,
+    lastAt: Long?,
     manual: Boolean,
     noneAt: Long?,
+    appealAt: Long?,
+    goneAt: Long?,
+    back: Boolean,
+    backNeedsYou: Boolean,
     onOpen: (String) -> Unit,
     onOptOut: (String) -> Unit,
     onSearchInBrowser: () -> Unit,
@@ -76,7 +107,12 @@ fun BrokerRow(
     onSetManual: (Boolean) -> Unit,
     onSetNone: (Boolean) -> Unit,
     onReport: (String) -> Unit,
-    onFinal: (String) -> Unit
+    onFinal: (String) -> Unit,
+    onAppeal: (String) -> Unit,
+    onUndoAppeal: () -> Unit,
+    onAppealReport: (String, Boolean) -> Unit,
+    onRepeat: (String) -> Unit,
+    onRelistReport: (String) -> Unit
 ) {
     val ctx = LocalContext.current
     val listed = manual || (r != null && r.status == Status.LISTED)
@@ -85,15 +121,21 @@ fun BrokerRow(
     // Every listing that clearly matches you goes into an email request.
     val mine = r?.listings?.filter { it.strong }?.map { it.url }.orEmpty()
         .ifEmpty { if (link.isEmpty()) emptyList() else listOf(link) }
+    val links = mine.joinToString("\n")
     val now = System.currentTimeMillis()
     val late = sentAt != null && daysLeft(sentAt, now) < 0
+    // Their time is up: the 45 days of a request, or the 60 days of an appeal.
+    val timeUp = if (appealAt != null) appealDaysLeft(appealAt, now) < 0 else late
     val label = when {
-        b.hand -> if (noneAt != null) "NOT LISTED" else if (sentAt != null) dueText(sentAt, now).uppercase() else "CHECK BY HAND"
+        b.hand -> if (noneAt != null) "NOT LISTED"
+        else if (sentAt != null) (if (appealAt != null) appealDueText(appealAt, now) else dueText(sentAt, now)).uppercase()
+        else "CHECK BY HAND"
         manual -> "LISTED"
+        back -> "BACK AGAIN"
         else -> rowLabel(r, sentAt)
     }
     val labelColor = when {
-        b.hand -> if (noneAt != null || (sentAt != null && !late)) Green else Amber
+        b.hand -> if (noneAt != null || (sentAt != null && !timeUp)) Green else Amber
         manual -> Pink
         else -> statusColor(r?.status)
     }
@@ -113,11 +155,8 @@ fun BrokerRow(
             if (noneAt != null) {
                 Text("Marked not listed " + dateText(noneAt), color = Green, fontSize = 12.sp)
             } else if (sentAt != null) {
-                Text(
-                    "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
-                    color = if (late) Amber else Green, fontSize = 12.sp
-                )
-                if (late) {
+                Text(sentLine(sentAt, lastAt, now), color = if (late && appealAt == null) Amber else Green, fontSize = 12.sp)
+                if (late && appealAt == null) {
                     RowButton("REPORT TO TEXAS AG") { onReport("") }
                     if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal("") }
                 }
@@ -131,6 +170,7 @@ fun BrokerRow(
                     RowButtonPair("MARK AS SENT", onMarkSent, "NOT LISTED", { onSetNone(true) })
                 } else {
                     RowButton("NOT LISTED") { onSetNone(true) }
+                    AppealBlock(appealAt, now, { onAppeal("") }, onUndoAppeal, { denied -> onAppealReport("", denied) })
                 }
             }
         } else {
@@ -156,13 +196,25 @@ fun BrokerRow(
             }
             if (sentAt != null && listed) {
                 Text(
-                    "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
-                    color = if (late) Amber else Green, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)
+                    sentLine(sentAt, lastAt, now),
+                    color = if (late && appealAt == null) Amber else Green, fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 8.dp)
                 )
-                if (late) {
-                    RowButton("REPORT TO TEXAS AG") { onReport(mine.joinToString("\n")) }
-                    if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal(mine.joinToString("\n")) }
+                if (late && appealAt == null) {
+                    RowButton("REPORT TO TEXAS AG") { onReport(links) }
+                    if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal(links) }
                 }
+            }
+            if (back && goneAt != null) {
+                Text(
+                    "This site dropped you: scans on two different days did not find you, the last on " +
+                        dateText(goneAt) + ". Now it lists you again. Open the listing above to make sure it is " +
+                        "you before you send anything.",
+                    color = Pink, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+                )
+                if (b.email.isNotEmpty()) RowButton("SEND REPEAT DEMAND", primary = true) { onRepeat(links) }
+                RowButton("REPORT RE-LISTING TO TEXAS AG") { onRelistReport(links) }
+                if (backNeedsYou) RowButton("I SENT IT AGAIN") { onMarkSent() }
             }
             if (listed) {
                 if (b.optOut.isNotEmpty()) {
@@ -174,8 +226,11 @@ fun BrokerRow(
                         onOptOutInBrowser()
                     }
                 }
-                if (b.email.isNotEmpty()) RowButton("SEND EMAIL REQUEST") { onEmail(mine.joinToString("\n")) }
+                if (b.email.isNotEmpty()) RowButton("SEND EMAIL REQUEST") { onEmail(links) }
                 if (sentAt == null) RowButton("MARK AS SENT") { onMarkSent() }
+                if (sentAt != null) {
+                    AppealBlock(appealAt, now, { onAppeal(links) }, onUndoAppeal, { denied -> onAppealReport(links, denied) })
+                }
             }
             if (manual) RowButton("NO LONGER LISTED") { onSetManual(false) }
             if (!manual && r != null && r.status == Status.CLEAR) {
@@ -199,7 +254,9 @@ fun BrokerRow(
 fun FormRow(
     b: Broker,
     sentAt: Long?,
+    lastAt: Long?,
     noneAt: Long?,
+    appealAt: Long?,
     onOptOut: () -> Unit,
     onBrowser: () -> Unit,
     onEmail: () -> Unit,
@@ -207,10 +264,17 @@ fun FormRow(
     onReport: () -> Unit,
     onFinal: () -> Unit,
     onMarkSent: () -> Unit,
-    onSetNone: (Boolean) -> Unit
+    onSetNone: (Boolean) -> Unit,
+    onAppeal: () -> Unit,
+    onUndoAppeal: () -> Unit,
+    onAppealReport: (Boolean) -> Unit
 ) {
     val now = System.currentTimeMillis()
-    val late = !b.tool && sentAt != null && daysLeft(sentAt, now) < 0
+    val appealed = !b.tool && appealAt != null
+    // Amber once their time is up: the 45 days of a request, or the 60 days of an appeal.
+    val late = !b.tool && sentAt != null && (
+        if (appealAt != null) appealDaysLeft(appealAt, now) < 0 else daysLeft(sentAt, now) < 0
+    )
     val markText = if (b.tool) "MARK AS DONE" else "MARK AS SENT"
     Column(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(10.dp))
@@ -220,7 +284,11 @@ fun FormRow(
             Text(b.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Text(
                 if (noneAt != null) "NOT LISTED"
-                else if (sentAt != null) (if (b.tool) "DONE" else dueText(sentAt, now).uppercase())
+                else if (sentAt != null) (
+                    if (b.tool) "DONE"
+                    else if (appealAt != null) appealDueText(appealAt, now).uppercase()
+                    else dueText(sentAt, now).uppercase()
+                )
                 else if (b.tool) "NOT DONE" else "NOT SENT",
                 color = if (noneAt != null) Green else if (sentAt != null) (if (late) Amber else Green) else Dim,
                 fontSize = 12.sp, fontFamily = Mono
@@ -236,12 +304,12 @@ fun FormRow(
             RowButton("UNDO NOT LISTED") { onSetNone(false) }
         } else if (sentAt != null) {
             Text(
-                if (b.tool) "Done " + dateText(sentAt) + "."
-                else "Opt-out sent " + dateText(sentAt) + ". " + dueSentence(sentAt, now),
-                color = if (late) Amber else Green, fontSize = 12.sp,
+                if (b.tool) "Done " + dateText(lastAt ?: sentAt) + "."
+                else sentLine(sentAt, lastAt, now),
+                color = if (late && !appealed) Amber else Green, fontSize = 12.sp,
                 modifier = Modifier.padding(top = 6.dp)
             )
-            if (late) {
+            if (late && !appealed) {
                 RowButton("REPORT TO TEXAS AG") { onReport() }
                 if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal() }
             }
@@ -251,11 +319,13 @@ fun FormRow(
                     if (b.tool) "OPEN AGAIN" else "OPT-OUT AGAIN", { if (b.browser) onBrowser() else onOptOut() },
                     "NOT LISTED", { onSetNone(true) }
                 )
+                if (b.email.isNotEmpty()) RowButton("EMAIL AGAIN") { onEmail() }
             } else if (b.email.isNotEmpty()) {
                 RowButtonPair("EMAIL AGAIN", onEmail, "NOT LISTED", { onSetNone(true) })
             } else {
                 RowButton("NOT LISTED") { onSetNone(true) }
             }
+            if (!b.tool) AppealBlock(appealAt, now, onAppeal, onUndoAppeal, onAppealReport)
         } else {
             if (b.find.isNotEmpty()) RowButton("FIND ME ON THIS SITE", primary = true) { onFind() }
             if (b.optOut.isNotEmpty()) {

@@ -121,7 +121,9 @@ data class Broker(
     // Phone lookup sites need your number to find you, so their emails include it.
     val sendPhone: Boolean = false,
     // Not a company that owes you an answer (Do Not Call, Google tools), so no 45-day countdown.
-    val tool: Boolean = false
+    val tool: Boolean = false,
+    // Mailing-list companies find you by street address, so their emails include it.
+    val sendAddress: Boolean = false
 ) {
     fun buildUrl(p: Profile): String = fill(search, p)
 
@@ -215,6 +217,131 @@ data class Broker(
         return sb.toString()
     }
 
+    // For a company that said no. Texas law gives you an appeal, and gives them 60 days to answer it in writing.
+    fun appealMailto(p: Profile, sentAt: Long, listingUrl: String): String = "mailto:" + email +
+        "?subject=" + Uri.encode(appealSubject(p)) + "&body=" + Uri.encode(appealBody(p, sentAt, listingUrl))
+
+    fun appealSubject(p: Profile): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        return if (p.state.trim().uppercase() == "TX") "Appeal of refused request (Texas resident) - " + who
+        else "Appeal of refused request - " + who
+    }
+
+    fun appealBody(p: Profile, sentAt: Long, listingUrl: String): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        val texas = p.state.trim().uppercase() == "TX"
+        val sb = StringBuilder()
+        sb.append("Hello,\n\n")
+        if (texas) sb.append("I am a Texas resident. ")
+        sb.append("I am appealing your refusal of the request I sent ").append(company()).append(" on ")
+            .append(dateText(sentAt))
+        if (texas) {
+            sb.append(" to delete my personal data and to opt me out of its sale, targeted advertising and profiling, ")
+            sb.append("under the Texas Data Privacy and Security Act (Texas Business and Commerce Code, Section 541.051).\n\n")
+            sb.append("I am the person this data is about. Please reverse your decision and complete my request.\n\n")
+            sb.append("Section 541.053 requires you to tell me in writing what you did or did not do in response to this ")
+            sb.append("appeal, with your reasons, not later than the 60th day after you receive it. If you deny the ")
+            sb.append("appeal, you must also give me the online mechanism for filing a complaint with the Office of the ")
+            sb.append("Texas Attorney General.\n\n")
+        } else {
+            sb.append(" to opt me out and delete or suppress every record about me.\n\n")
+            sb.append("I am the person this data is about. Please reverse your decision, complete my request and ")
+            sb.append("confirm by email.\n\n")
+        }
+        details(sb, p, listingUrl)
+        sb.append("\nThank you,\n").append(who)
+        return sb.toString()
+    }
+
+    // For a site that dropped your listing and then put it back.
+    fun repeatMailto(p: Profile, sentAt: Long, goneAt: Long, backAt: Long, listingUrl: String): String = "mailto:" + email +
+        "?subject=" + Uri.encode(repeatSubject(p)) + "&body=" + Uri.encode(repeatBody(p, sentAt, goneAt, backAt, listingUrl))
+
+    fun repeatSubject(p: Profile): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        return if (p.state.trim().uppercase() == "TX") "My deleted listing is back (Texas resident) - " + who
+        else "My removed listing is back - " + who
+    }
+
+    fun repeatBody(p: Profile, sentAt: Long, goneAt: Long, backAt: Long, listingUrl: String): String {
+        val who = p.first.trim() + " " + p.last.trim()
+        val texas = p.state.trim().uppercase() == "TX"
+        val sb = StringBuilder()
+        sb.append("Hello,\n\n")
+        if (texas) sb.append("I am a Texas resident. ")
+        sb.append("On ").append(dateText(sentAt)).append(" I asked ").append(company())
+        if (texas) {
+            sb.append(" to delete my personal data and to opt me out of its sale, targeted advertising and profiling, ")
+            sb.append("under the Texas Data Privacy and Security Act (Texas Business and Commerce Code, Section 541.051). ")
+        } else {
+            sb.append(" to opt me out and delete or suppress every record about me. ")
+        }
+        sb.append("A check of your site on ").append(dateText(goneAt)).append(" no longer found my listing. ")
+        sb.append("A check on ").append(dateText(backAt)).append(" found it listed again.\n\n")
+        if (texas) {
+            sb.append("Section 541.052(f) says how a company complies with a deletion request for data it got from ")
+            sb.append("other sources: it keeps a record of the request so the data stays deleted, or it opts the person ")
+            sb.append("out of processing. Listing me again does neither.\n\n")
+            sb.append("Please remove my listing again, keep my data suppressed, and confirm by email. If this is not ")
+            sb.append("fixed, I will file a complaint with the Office of the Texas Attorney General, which enforces the Act.\n\n")
+        } else {
+            sb.append("Please remove my listing again, keep my data suppressed, and confirm by email.\n\n")
+        }
+        details(sb, p, listingUrl)
+        sb.append("\nThank you,\n").append(who)
+        return sb.toString()
+    }
+
+    // For the Texas Attorney General when an appeal was denied, or went unanswered for 60 days.
+    fun appealComplaintText(p: Profile, sentAt: Long, appealAt: Long, now: Long, denied: Boolean, listingUrl: String): String {
+        val links = splitLinks(listingUrl)
+        val site = site()
+        val sb = StringBuilder()
+        if (p.state.trim().uppercase() == "TX") sb.append("I am a Texas resident. ")
+        sb.append("On ").append(dateText(sentAt)).append(" I sent ").append(company())
+        if (site.isNotEmpty()) sb.append(" (").append(site).append(")")
+        sb.append(" a request under the Texas Data Privacy and Security Act to delete my personal data and to opt me ")
+        sb.append("out of its sale, targeted advertising and profiling. The company refused. On ")
+        sb.append(dateText(appealAt)).append(" I appealed under Section 541.053")
+        if (denied) {
+            sb.append(", and the company denied my appeal. I am asking the Attorney General to review that denial.")
+        } else {
+            val late = -appealDaysLeft(appealAt, now)
+            sb.append(", which required a written decision within 60 days, by ")
+            sb.append(dateText(addDays(appealAt, APPEAL_DAYS))).append(". As of ").append(dateText(now)).append(", ")
+            sb.append(if (late == 1) "1 day" else "$late days")
+            sb.append(" after that deadline, I have not received one.")
+        }
+        if (links.size == 1) sb.append(" My information is still listed at ").append(links[0])
+        if (links.size > 1) {
+            sb.append(" My information is still listed at these pages:")
+            for (l in links) sb.append("\n").append(l)
+        }
+        return sb.toString()
+    }
+
+    // For the Texas Attorney General when a site dropped your listing and then put it back.
+    fun relistComplaintText(p: Profile, sentAt: Long, goneAt: Long, backAt: Long, listingUrl: String): String {
+        val links = splitLinks(listingUrl)
+        val site = site()
+        val sb = StringBuilder()
+        if (p.state.trim().uppercase() == "TX") sb.append("I am a Texas resident. ")
+        sb.append("On ").append(dateText(sentAt)).append(" I sent ").append(company())
+        if (site.isNotEmpty()) sb.append(" (").append(site).append(")")
+        sb.append(" a request under the Texas Data Privacy and Security Act to delete my personal data and to opt me ")
+        sb.append("out of its sale, targeted advertising and profiling. A check of the site on ")
+        sb.append(dateText(goneAt)).append(" no longer found my listing. A check on ").append(dateText(backAt))
+        sb.append(" found it listed again. Section 541.052(f) describes compliance with a deletion request as keeping ")
+        sb.append("a record of it so the data stays deleted, or opting the person out of processing. The company has ")
+        sb.append("done neither.")
+        if (links.size == 1) sb.append(" My information is listed again at ").append(links[0])
+        if (links.size > 1) {
+            sb.append(" My information is listed again at these pages:")
+            for (l in links) sb.append("\n").append(l)
+        }
+        return sb.toString()
+    }
+
     // Ready to paste into the description box of the Texas Attorney General's complaint form.
     fun complaintText(p: Profile, sentAt: Long, now: Long, listingUrl: String): String {
         val links = splitLinks(listingUrl)
@@ -244,6 +371,12 @@ data class Broker(
         sb.append("Name: ").append(full).append("\n")
         sb.append("Location: ").append(p.city.trim()).append(", ")
             .append(p.state.trim().uppercase()).append("\n")
+        if (sendAddress && p.street.isNotBlank()) {
+            sb.append("Address: ").append(p.street.trim()).append(", ").append(p.city.trim()).append(", ")
+                .append(p.state.trim().uppercase())
+            if (p.zip.isNotBlank()) sb.append(" ").append(p.zip.trim())
+            sb.append("\n")
+        }
         if (p.email.isNotBlank()) sb.append("Email: ").append(p.email.trim()).append("\n")
         if (sendPhone && p.phone.isNotBlank()) sb.append("Phone: ").append(p.phone.trim()).append("\n")
         if (links.size == 1) sb.append("Listing: ").append(links[0]).append("\n")
@@ -300,7 +433,7 @@ fun baseDomain(host: String): String {
 fun splitLinks(listingUrl: String): List<String> =
     listingUrl.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
 
-fun dueAt(sentAt: Long): Long = sentAt + REPLY_DAYS * DAY_MS
+fun dueAt(sentAt: Long): Long = addDays(sentAt, REPLY_DAYS)
 
 // Chip texts for the opt-out screen, so subject and message boxes need no typing.
 fun subjectText(p: Profile): String =
@@ -331,7 +464,8 @@ fun loadBrokers(ctx: Context): List<Broker> {
                         id, o.getString("name"), o.optString("search"),
                         o.optString("optOut"), o.optString("ua"), o.optString("tip"),
                         o.optString("email"), o.optBoolean("hand"), o.optBoolean("browser"),
-                        o.optString("find"), o.optBoolean("sendPhone"), o.optBoolean("tool")
+                        o.optString("find"), o.optBoolean("sendPhone"), o.optBoolean("tool"),
+                        o.optBoolean("sendAddress")
                     )
                 )
             }

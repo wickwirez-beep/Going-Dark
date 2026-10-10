@@ -70,8 +70,8 @@ const val REPLY_DAYS = 45
 const val DAY_MS = 24L * 60L * 60L * 1000L
 const val AG_COMPLAINT = "https://consumerprotection.texasattorneygeneral.gov/"
 
-// Days they have left to answer, counted from the day you sent it. Below zero once they are late.
-fun daysLeft(sentAt: Long, now: Long): Int = REPLY_DAYS - ((now - sentAt) / DAY_MS).toInt()
+// Days they have left to answer, counted in calendar days from the day you sent it. Below zero once they are late.
+fun daysLeft(sentAt: Long, now: Long): Int = REPLY_DAYS - daysBetween(sentAt, now)
 
 fun dueText(sentAt: Long, now: Long): String {
     val left = daysLeft(sentAt, now)
@@ -95,13 +95,18 @@ fun dueSentence(sentAt: Long, now: Long): String {
     }
 }
 
-// True while a row still needs something from you: not sent yet, or sent and their 45 days ran out.
+// True while a row still needs something from you: not sent yet, back on a site that had dropped you,
+// or sent and their time to answer ran out.
 fun needsAction(b: Broker, results: Map<String, BrokerResult>, sent: Map<String, Long>, now: Long): Boolean {
     if (sent[noneKey(b.id)] != null) return false
     val scanRow = b.search.isNotEmpty() && !b.hand
     if (scanRow && sent[manualKey(b.id)] == null && results[b.id]?.status == Status.CLEAR) return false
-    val sentAt = sent[b.id] ?: return true
-    return !b.tool && daysLeft(sentAt, now) < 0
+    val sentAt = firstSent(sent, b.id) ?: return true
+    if (b.tool) return false
+    val appealAt = sent[appealKey(b.id)]
+    if (appealAt != null) return appealDaysLeft(appealAt, now) < 0
+    if (backNeedsYou(b, results[b.id], sent)) return true
+    return daysLeft(sentAt, now) < 0
 }
 
 // A link you copied from this company's own site, so the email can include your listing.
@@ -144,15 +149,16 @@ fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent:
     for (b in brokers) {
         val sentAt = sent[b.id]
         val none = sent[noneKey(b.id)] != null
-        val sentOn = if (sentAt != null) "opt-out sent " + dateText(sentAt) else ""
+        // The first request date, the latest one if you sent it again, then their 45 days or the appeal's 60.
+        val sentOn = sentText(sent, b.id)
         val mark = if (sentAt != null) " [$sentOn]" else ""
-        val markDue = if (sentAt != null) " [$sentOn, " + dueText(sentAt, now) + "]" else ""
+        val markDue = if (sentAt != null) " [$sentOn, " + clockNote(sent, b.id, now) + "]" else ""
         sb.append(b.name).append(": ")
         if (b.search.isEmpty()) {
             sb.append(
                 if (none) "not listed"
                 else if (b.tool) (if (sentAt != null) "done " + dateText(sentAt) else "not done")
-                else if (sentAt != null) sentOn + ", " + dueText(sentAt, now)
+                else if (sentAt != null) sentOn + ", " + clockNote(sent, b.id, now)
                 else "opt-out not sent"
             )
         } else if (b.hand) {
@@ -162,10 +168,12 @@ fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent:
             sb.append("LISTED (marked by you)").append(markDue)
         } else {
             val r = results[b.id]
-            sb.append(rowLabel(r, sentAt))
+            val back = isBack(b, r, sent)
+            sb.append(if (back) "BACK AGAIN" else rowLabel(r, sentAt))
             if (r != null) {
                 if (r.listings.isNotEmpty()) sb.append(" (").append(r.listings.size).append(if (r.listings.size == 1) " listing)" else " listings)")
                 if (r.note.isNotEmpty()) sb.append(" - ").append(r.note)
+                if (back) sb.append(" - not found in the scan of ").append(dateText(sent[goneKey(b.id)] ?: now))
             }
             sb.append(if (r != null && r.status == Status.CLEAR) mark else markDue)
         }

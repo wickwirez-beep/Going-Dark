@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -30,6 +31,8 @@ fun HomeScreen(
     onMarkSent: (Broker) -> Unit,
     onSetManual: (Broker, Boolean) -> Unit,
     onSetNone: (Broker, Boolean) -> Unit,
+    onAppeal: (Broker) -> Unit,
+    onUndoAppeal: (Broker) -> Unit,
     onTimerToggle: () -> Unit,
     onTimerAdjust: (Long) -> Unit,
     onTimerExpire: () -> Unit
@@ -49,14 +52,43 @@ fun HomeScreen(
     val todoCount = brokers.count { needsAction(it, results, sent, now) }
     val shownSites = if (todoOnly) siteRows.filter { needsAction(it, results, sent, now) } else siteRows
     val shownForms = if (todoOnly) formOnly.filter { needsAction(it, results, sent, now) } else formOnly
+    // Where each row that still needs you sits in the list below, for the NEXT TO-DO button.
+    val todoAt = ArrayList<Int>()
+    shownSites.forEachIndexed { i, b -> if (needsAction(b, results, sent, now)) todoAt.add(1 + i) }
+    shownForms.forEachIndexed { i, b -> if (needsAction(b, results, sent, now)) todoAt.add(2 + shownSites.size + i) }
+    val scope = rememberCoroutineScope()
+    val complaintCopied = "Complaint copied. Paste it into the description box on the AG's form."
     // Copies a ready-made complaint, then opens the Texas Attorney General's form to paste it into.
     val report: (Broker, String) -> Unit = { b, links ->
         val t = System.currentTimeMillis()
-        copyText(ctx, "Complaint", b.complaintText(profile, sent[b.id] ?: t, t, links))
-        Toast.makeText(ctx, "Complaint copied. Paste it into the description box on the AG's form.", Toast.LENGTH_LONG).show()
+        copyText(ctx, "Complaint", b.complaintText(profile, firstSent(sent, b.id) ?: t, t, links))
+        Toast.makeText(ctx, complaintCopied, Toast.LENGTH_LONG).show()
         onExternal(AG_COMPLAINT)
     }
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp), state = listState) {
+    // Copies the appeal, opens it as an email when the company has an address, and starts the 60 days.
+    val appeal: (Broker, String) -> Unit = { b, links ->
+        val t = System.currentTimeMillis()
+        val first = firstSent(sent, b.id) ?: t
+        copyText(ctx, "Appeal", b.appealBody(profile, first, links))
+        if (b.email.isNotEmpty()) {
+            Toast.makeText(ctx, "Appeal copied too. If they refused by email, you can paste it into a reply instead.", Toast.LENGTH_LONG).show()
+            onExternal(b.appealMailto(profile, first, links))
+        } else {
+            Toast.makeText(ctx, "Appeal copied. Paste it into a reply to their refusal, or into their appeal form.", Toast.LENGTH_LONG).show()
+        }
+        onAppeal(b)
+    }
+    val appealReport: (Broker, String, Boolean) -> Unit = { b, links, denied ->
+        val t = System.currentTimeMillis()
+        copyText(
+            ctx, "Complaint",
+            b.appealComplaintText(profile, firstSent(sent, b.id) ?: t, sent[appealKey(b.id)] ?: t, t, denied, links)
+        )
+        Toast.makeText(ctx, complaintCopied, Toast.LENGTH_LONG).show()
+        onExternal(AG_COMPLAINT)
+    }
+    Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), state = listState) {
         item {
             Spacer(Modifier.height(18.dp))
             Text(
@@ -108,8 +140,12 @@ fun HomeScreen(
             Spacer(Modifier.height(14.dp))
         }
         items(shownSites, key = { it.id }) { b ->
+            val r = results[b.id]
+            val first = firstSent(sent, b.id)
+            val goneAt = sent[goneKey(b.id)]
             BrokerRow(
-                b, results[b.id], sent[b.id], sent[manualKey(b.id)] != null, sent[noneKey(b.id)],
+                b, r, first, sent[b.id], sent[manualKey(b.id)] != null, sent[noneKey(b.id)],
+                sent[appealKey(b.id)], goneAt, isBack(b, r, sent), backNeedsYou(b, r, sent),
                 onOpen = { url -> onExternal(url) },
                 onOptOut = { url -> onOptOut(b, url) },
                 onSearchInBrowser = { onExternal(b.buildUrl(profile)) },
@@ -121,7 +157,20 @@ fun HomeScreen(
                 onReport = { url -> report(b, url.ifEmpty { clipLink(ctx, b) }) },
                 onFinal = { url ->
                     val t = System.currentTimeMillis()
-                    onExternal(b.finalMailto(profile, sent[b.id] ?: t, t, url.ifEmpty { clipLink(ctx, b) }))
+                    onExternal(b.finalMailto(profile, first ?: t, t, url.ifEmpty { clipLink(ctx, b) }))
+                },
+                onAppeal = { url -> appeal(b, url.ifEmpty { clipLink(ctx, b) }) },
+                onUndoAppeal = { onUndoAppeal(b) },
+                onAppealReport = { url, denied -> appealReport(b, url.ifEmpty { clipLink(ctx, b) }, denied) },
+                onRepeat = { url ->
+                    val t = System.currentTimeMillis()
+                    onExternal(b.repeatMailto(profile, first ?: t, goneAt ?: t, r?.checkedAt ?: t, url))
+                },
+                onRelistReport = { url ->
+                    val t = System.currentTimeMillis()
+                    copyText(ctx, "Complaint", b.relistComplaintText(profile, first ?: t, goneAt ?: t, r?.checkedAt ?: t, url))
+                    Toast.makeText(ctx, complaintCopied, Toast.LENGTH_LONG).show()
+                    onExternal(AG_COMPLAINT)
                 }
             )
         }
@@ -137,7 +186,7 @@ fun HomeScreen(
         }
         items(shownForms, key = { it.id }) { b ->
             FormRow(
-                b, sent[b.id], sent[noneKey(b.id)],
+                b, firstSent(sent, b.id), sent[b.id], sent[noneKey(b.id)], sent[appealKey(b.id)],
                 onOptOut = { onOptOut(b, "") },
                 onBrowser = { onExternal(b.optOut) },
                 onEmail = {
@@ -149,12 +198,31 @@ fun HomeScreen(
                 onReport = { report(b, clipLink(ctx, b)) },
                 onFinal = {
                     val t = System.currentTimeMillis()
-                    onExternal(b.finalMailto(profile, sent[b.id] ?: t, t, clipLink(ctx, b)))
+                    onExternal(b.finalMailto(profile, firstSent(sent, b.id) ?: t, t, clipLink(ctx, b)))
                 },
                 onMarkSent = { onMarkSent(b) },
-                onSetNone = { on -> onSetNone(b, on) }
+                onSetNone = { on -> onSetNone(b, on) },
+                onAppeal = { appeal(b, clipLink(ctx, b)) },
+                onUndoAppeal = { onUndoAppeal(b) },
+                onAppealReport = { denied -> appealReport(b, clipLink(ctx, b), denied) }
             )
         }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+    // Always on screen: hops to the next row that still needs you, and wraps round at the end.
+    if (todoAt.isNotEmpty()) {
+        Button(
+            onClick = {
+                val here = listState.firstVisibleItemIndex
+                // At the bottom of the list every row below is already on screen, so go back round to the first.
+                val next = if (listState.canScrollForward) todoAt.firstOrNull { it > here } else null
+                val target = next ?: todoAt[0]
+                scope.launch { listState.animateScrollToItem(target) }
+            },
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), shape = RoundedCornerShape(10.dp)
+        ) {
+            Text("NEXT TO-DO (" + todoAt.size + " LEFT)", fontFamily = Mono, fontWeight = FontWeight.Bold)
+        }
+    }
     }
 }
