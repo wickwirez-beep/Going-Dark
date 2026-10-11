@@ -454,7 +454,10 @@ data class Broker(
 }
 
 // Opt-out forms hosted by these services say nothing about whose site it is.
-val FORM_HOSTS = setOf("onetrust.com", "trustarc.eu", "trustarc.com", "zendesk.com", "consumerprivacyinfo.com")
+val FORM_HOSTS = setOf(
+    "onetrust.com", "trustarc.eu", "trustarc.com", "zendesk.com", "consumerprivacyinfo.com",
+    "saymine.io", "securiti.ai", "privacypillar.com", "clarip.com"
+)
 
 fun hostOf(url: String): String {
     val u = url.trim()
