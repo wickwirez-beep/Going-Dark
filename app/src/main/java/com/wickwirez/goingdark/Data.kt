@@ -451,6 +451,12 @@ data class Broker(
         val d = baseDomain(hostOf(t))
         return d.isNotEmpty() && d in sites()
     }
+
+    // What the search box looks through: the company's name, its email address and its websites.
+    fun searchText(): String = squash(name + " " + email + " " + sites().joinToString(" "))
+
+    // Shown under the name in search results, so you can match the row to the email you got back.
+    fun contact(): String = if (email.isNotEmpty()) email else site()
 }
 
 // Opt-out forms hosted by these services say nothing about whose site it is.
@@ -476,6 +482,44 @@ fun baseDomain(host: String): String {
 
 fun splitLinks(listingUrl: String): List<String> =
     listingUrl.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+
+// For the search box: lowercase letters and digits only, so "People Search Now", "peoplesearchnow" and
+// "PeopleSearchNow" all line up.
+fun squash(s: String): String = s.lowercase().filter { it.isLetterOrDigit() }
+
+// Words from an email's sender line that say nothing about which company sent it.
+val SEARCH_FILLER = setOf(
+    "inc", "llc", "ltd", "corp", "corporation", "company", "co", "the", "team", "privacy", "support",
+    "customer", "care", "service", "services", "help", "desk", "department", "office", "noreply"
+)
+
+// The site's own name when a typed word is an email address, a link or a website, so privacy@mail.spokeo.com,
+// spokeo.com and https://www.spokeo.com/optout all give "spokeo". Null for any other word.
+fun siteWord(raw: String): String? {
+    val w = raw.trim('<', '>', '(', ')', '[', ']', '"', '\'', ',', ';')
+    val host = when {
+        w.contains('@') -> w.substringAfterLast('@')
+        w.contains("://") -> hostOf(w)
+        else -> w
+    }.takeWhile { it.isLetterOrDigit() || it == '.' || it == '-' }
+    val parts = host.split('.').filter { it.isNotEmpty() }
+    val end = parts.lastOrNull() ?: return null
+    if (parts.size < 2 || end.length < 2 || !end.all { it.isLetter() }) return null
+    return squash(parts[parts.size - 2]).ifEmpty { null }
+}
+
+// The words typed in the search box, and every one has to match. An email address or a website says exactly which
+// company it is, so when there is one the other words are left out: you can paste a whole sender line. Otherwise
+// filler words are dropped, unless that leaves none. While you are still typing an email address, the part after
+// the @ is what counts.
+fun searchWords(query: String): List<String> {
+    val typed = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    val sites = typed.mapNotNull { siteWord(it) }.distinct()
+    if (sites.isNotEmpty()) return sites
+    val all = typed.map { squash(it.substringAfterLast('@').ifEmpty { it }) }.filter { it.isNotEmpty() }.distinct()
+    val kept = all.filter { it !in SEARCH_FILLER }
+    return if (kept.isEmpty()) all else kept
+}
 
 fun dueAt(sentAt: Long): Long = addDays(sentAt, REPLY_DAYS)
 

@@ -1,16 +1,23 @@
 package com.wickwirez.goingdark
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -24,6 +31,9 @@ fun HomeScreen(
     listState: LazyListState,
     todoOnly: Boolean,
     onTodoToggle: () -> Unit,
+    query: String,
+    onQuery: (String) -> Unit,
+    searchState: LazyListState,
     onScan: () -> Unit,
     onProfile: () -> Unit,
     onOptOut: (Broker, String) -> Unit,
@@ -38,6 +48,7 @@ fun HomeScreen(
     onTimerExpire: () -> Unit
 ) {
     val ctx = LocalContext.current
+    val focus = LocalFocusManager.current
     val siteRows = brokers.filter { it.search.isNotEmpty() }
     val scanList = siteRows.filter { !it.hand }
     val formOnly = brokers.filter { it.search.isEmpty() }
@@ -50,8 +61,21 @@ fun HomeScreen(
     val scanned = scanList.count { sent[manualKey(it.id)] != null || results[it.id] != null }
     val now = System.currentTimeMillis()
     val todoCount = brokers.count { needsAction(it, results, sent, now) }
-    val shownSites = if (todoOnly) siteRows.filter { needsAction(it, results, sent, now) } else siteRows
-    val shownForms = if (todoOnly) formOnly.filter { needsAction(it, results, sent, now) } else formOnly
+    // The search box looks through every row, even with SHOW TO-DO ONLY on.
+    val words = searchWords(query)
+    val searching = words.isNotEmpty()
+    val hay = remember(brokers) { brokers.associate { it.id to it.searchText() } }
+    val found: (Broker) -> Boolean = { b -> words.all { (hay[b.id] ?: "").contains(it) } }
+    val shownSites = when {
+        searching -> siteRows.filter(found)
+        todoOnly -> siteRows.filter { needsAction(it, results, sent, now) }
+        else -> siteRows
+    }
+    val shownForms = when {
+        searching -> formOnly.filter(found)
+        todoOnly -> formOnly.filter { needsAction(it, results, sent, now) }
+        else -> formOnly
+    }
     // Where each row that still needs you sits in the list below, for the NEXT TO-DO button.
     val todoAt = ArrayList<Int>()
     shownSites.forEachIndexed { i, b -> if (needsAction(b, results, sent, now)) todoAt.add(1 + i) }
@@ -99,9 +123,43 @@ fun HomeScreen(
         Toast.makeText(ctx, complaintCopied, Toast.LENGTH_LONG).show()
         onExternal(AG_COMPLAINT)
     }
+    // Back clears the search and puts you back in the full list where you were.
+    BackHandler(enabled = query.isNotEmpty()) { onQuery("") }
+    // Dragging the list puts the keyboard away, so the rows get the whole screen.
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { if (it is DragInteraction.Start) focus.clearFocus() }
+    }
+    LaunchedEffect(searchState) {
+        searchState.interactionSource.interactions.collect { if (it is DragInteraction.Start) focus.clearFocus() }
+    }
     Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
-    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), state = listState) {
-        item {
+    SearchBox(
+        query,
+        onQuery = { q ->
+            onQuery(q)
+            // New words: show their results from the top.
+            scope.launch { searchState.scrollToItem(0) }
+        },
+        onSearch = { focus.clearFocus() }
+    )
+    // Search results keep their own place, so clearing the search takes you back to where you were in the list.
+    key(searching) {
+    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), state = if (searching) searchState else listState) {
+        if (searching) item {
+            val n = shownSites.size + shownForms.size
+            Text(
+                if (n == 0) "NO MATCH" else if (n == 1) "1 MATCH" else "$n MATCHES",
+                color = if (n == 0) Amber else Cyan, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                fontFamily = Mono, modifier = Modifier.padding(vertical = 4.dp)
+            )
+            if (n == 0) {
+                Text(
+                    "Try part of the company's name, or the website the email came from, like spokeo.com.",
+                    color = Dim, fontSize = 12.sp
+                )
+            }
+        }
+        if (!searching) item {
             Spacer(Modifier.height(18.dp))
             Text(
                 "GOING DARK", color = Cyan, fontSize = 30.sp, fontWeight = FontWeight.Black,
@@ -199,10 +257,11 @@ fun HomeScreen(
                     copyText(ctx, "Complaint", b.relistComplaintText(profile, first ?: t, goneAt ?: t, r?.checkedAt ?: t, url))
                     Toast.makeText(ctx, complaintCopied, Toast.LENGTH_LONG).show()
                     onExternal(AG_COMPLAINT)
-                }
+                },
+                detail = if (searching) b.contact() else ""
             )
         }
-        item {
+        if (!searching) item {
             Spacer(Modifier.height(18.dp))
             Text("OPT-OUT ONLY", color = Cyan, fontSize = 16.sp, fontWeight = FontWeight.Black, fontFamily = Mono)
             Text(
@@ -233,13 +292,15 @@ fun HomeScreen(
                 onNoId = { noId(b, clipLink(ctx, b)) },
                 onAppeal = { appeal(b, clipLink(ctx, b)) },
                 onUndoAppeal = { onUndoAppeal(b) },
-                onAppealReport = { denied -> appealReport(b, clipLink(ctx, b), denied) }
+                onAppealReport = { denied -> appealReport(b, clipLink(ctx, b), denied) },
+                detail = if (searching) b.contact() else ""
             )
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
-    // Always on screen: hops to the next row that still needs you, and wraps round at the end.
-    if (todoAt.isNotEmpty()) {
+    }
+    // Always on screen, except during a search: hops to the next row that still needs you, and wraps round at the end.
+    if (!searching && todoAt.isNotEmpty()) {
         Button(
             onClick = {
                 val here = listState.firstVisibleItemIndex
@@ -254,4 +315,22 @@ fun HomeScreen(
         }
     }
     }
+}
+
+// Stays at the top of the screen. Type part of a company's name, the address an email came from, or a website, and
+// the list shows only the rows that match.
+@Composable
+fun SearchBox(query: String, onQuery: (String) -> Unit, onSearch: () -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQuery,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp),
+        placeholder = { Text("Search company, email or website", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        trailingIcon = if (query.isEmpty()) null else {
+            { TextButton(onClick = { onQuery("") }) { Text("CLEAR", fontFamily = Mono) } }
+        },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSearch() })
+    )
 }

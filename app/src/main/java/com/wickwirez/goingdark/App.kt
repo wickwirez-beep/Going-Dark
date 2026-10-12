@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 
@@ -25,6 +26,10 @@ fun GoingDarkApp() {
     var targetUrl by remember { mutableStateOf("") }
     var todoOnly by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    // What is in the search box, and where its results are scrolled to. Kept here so both are still there when
+    // you come back from an opt-out page.
+    var query by rememberSaveable { mutableStateOf("") }
+    val searchState = rememberLazyListState()
 
     val save: () -> Unit = { Store.saveSent(ctx, sent.toMap()) }
     val touch: () -> Unit = {
@@ -78,6 +83,9 @@ fun GoingDarkApp() {
                     brokers, results, sent, profile, listState,
                     todoOnly = todoOnly,
                     onTodoToggle = { todoOnly = !todoOnly },
+                    query = query,
+                    onQuery = { query = it },
+                    searchState = searchState,
                     onScan = { screen = Screen.SCAN },
                     onProfile = { screen = Screen.PROFILE },
                     onOptOut = { b, url ->

@@ -115,7 +115,8 @@ fun BrokerRow(
     onUndoAppeal: () -> Unit,
     onAppealReport: (String, Boolean) -> Unit,
     onRepeat: (String) -> Unit,
-    onRelistReport: (String) -> Unit
+    onRelistReport: (String) -> Unit,
+    detail: String = ""
 ) {
     val ctx = LocalContext.current
     val listed = manual || (r != null && r.status == Status.LISTED)
@@ -149,6 +150,9 @@ fun BrokerRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(b.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Text(label, color = labelColor, fontSize = 12.sp, fontFamily = Mono)
+        }
+        if (detail.isNotEmpty()) {
+            Text(detail, color = Dim, fontSize = 11.sp, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (b.hand) {
             Text(
@@ -277,7 +281,8 @@ fun FormRow(
     onNoId: () -> Unit,
     onAppeal: () -> Unit,
     onUndoAppeal: () -> Unit,
-    onAppealReport: (Boolean) -> Unit
+    onAppealReport: (Boolean) -> Unit,
+    detail: String = ""
 ) {
     val now = System.currentTimeMillis()
     val appealed = !b.tool && appealAt != null
@@ -303,6 +308,9 @@ fun FormRow(
                 color = if (noneAt != null) Green else if (sentAt != null) (if (late) Amber else Green) else Dim,
                 fontSize = 12.sp, fontFamily = Mono
             )
+        }
+        if (detail.isNotEmpty()) {
+            Text(detail, color = Dim, fontSize = 11.sp, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (b.tip.isNotEmpty()) Text(b.tip, color = Dim, fontSize = 12.sp)
         if (noneAt != null) {
