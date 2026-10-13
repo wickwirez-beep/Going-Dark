@@ -186,6 +186,7 @@ fun BrokerRow(
                 if (b.optOut.isNotEmpty()) RowButton("OPT OUT IN BROWSER") { onOptOutInBrowser() }
                 if (sentAt == null) {
                     RowButtonPair("MARK AS SENT", onMarkSent, "NOT LISTED", { onSetNone(true) })
+                    RowButton("REMOVED: THEY CONFIRMED") { onSetRemoved(true) }
                 } else {
                     RowButton("NOT LISTED") { onSetNone(true) }
                     AppealBlock(
@@ -226,7 +227,7 @@ fun BrokerRow(
                     if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal(links) }
                 }
             }
-            if (sentAt != null) RowButton("REMOVED: THEY CONFIRMED", primary = true) { onSetRemoved(true) }
+            RowButton("REMOVED: THEY CONFIRMED", primary = sentAt != null) { onSetRemoved(true) }
             if (back && goneAt != null) {
                 Text(
                     "This site dropped you: scans on two different days did not find you, the last on " +
@@ -379,6 +380,7 @@ fun FormRow(
                 RowButton("SEND EMAIL REQUEST", primary = b.optOut.isEmpty()) { onEmail() }
             }
             RowButtonPair(markText, onMarkSent, "NOT LISTED", { onSetNone(true) })
+            if (!b.tool) RowButton("REMOVED: THEY CONFIRMED") { onSetRemoved(true) }
         }
     }
 }
