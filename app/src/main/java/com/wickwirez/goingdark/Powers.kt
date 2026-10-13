@@ -87,7 +87,7 @@ fun forgetDrop(sent: MutableMap<String, Long>, id: String) {
 // A scanned site that dropped you after your opt-out and, in a later scan, lists you again.
 fun isBack(b: Broker, r: BrokerResult?, sent: Map<String, Long>): Boolean {
     if (b.search.isEmpty() || b.hand || r == null) return false
-    if (sent[manualKey(b.id)] != null || sent[noneKey(b.id)] != null) return false
+    if (sent[manualKey(b.id)] != null || sent[noneKey(b.id)] != null || sent[removedKey(b.id)] != null) return false
     val gone = sent[goneKey(b.id)] ?: return false
     return r.status == Status.LISTED && apart(gone, r.checkedAt)
 }

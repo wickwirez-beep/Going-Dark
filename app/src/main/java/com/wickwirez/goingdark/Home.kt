@@ -41,6 +41,7 @@ fun HomeScreen(
     onMarkSent: (Broker) -> Unit,
     onSetManual: (Broker, Boolean) -> Unit,
     onSetNone: (Broker, Boolean) -> Unit,
+    onSetRemoved: (Broker, Boolean) -> Unit,
     onAppeal: (Broker) -> Unit,
     onUndoAppeal: (Broker) -> Unit,
     onTimerToggle: () -> Unit,
@@ -53,7 +54,7 @@ fun HomeScreen(
     val scanList = siteRows.filter { !it.hand }
     val formOnly = brokers.filter { it.search.isEmpty() }
     val listed = scanList.count {
-        sent[manualKey(it.id)] != null || results[it.id]?.status == Status.LISTED
+        sent[removedKey(it.id)] == null && (sent[manualKey(it.id)] != null || results[it.id]?.status == Status.LISTED)
     }
     val clear = scanList.count {
         sent[manualKey(it.id)] == null && results[it.id]?.status == Status.CLEAR
@@ -230,7 +231,7 @@ fun HomeScreen(
             val goneAt = sent[goneKey(b.id)]
             BrokerRow(
                 b, r, first, sent[b.id], sent[manualKey(b.id)] != null, sent[noneKey(b.id)],
-                sent[appealKey(b.id)], goneAt, isBack(b, r, sent), backNeedsYou(b, r, sent),
+                sent[appealKey(b.id)], goneAt, isBack(b, r, sent), backNeedsYou(b, r, sent), sent[removedKey(b.id)],
                 onOpen = { url -> onExternal(url) },
                 onOptOut = { url -> onOptOut(b, url) },
                 onSearchInBrowser = { onExternal(b.buildUrl(profile)) },
@@ -239,6 +240,7 @@ fun HomeScreen(
                 onMarkSent = { onMarkSent(b) },
                 onSetManual = { on -> onSetManual(b, on) },
                 onSetNone = { on -> onSetNone(b, on) },
+                onSetRemoved = { on -> onSetRemoved(b, on) },
                 onReport = { url -> report(b, url.ifEmpty { clipLink(ctx, b) }) },
                 onFinal = { url ->
                     val t = System.currentTimeMillis()
@@ -266,14 +268,14 @@ fun HomeScreen(
             Text("OPT-OUT ONLY", color = Cyan, fontSize = 16.sp, fontWeight = FontWeight.Black, fontFamily = Mono)
             Text(
                 "These cannot be scanned. Each button opens the removal page or a filled-in email. " +
-                    "Tap NOT LISTED when a site has nothing on you, or once it confirms you are removed.",
+                    "Tap NOT LISTED when a site has nothing on you. Tap REMOVED once a company confirms it deleted you.",
                 color = Dim, fontSize = 12.sp
             )
             Spacer(Modifier.height(6.dp))
         }
         items(shownForms, key = { it.id }) { b ->
             FormRow(
-                b, firstSent(sent, b.id), sent[b.id], sent[noneKey(b.id)], sent[appealKey(b.id)],
+                b, firstSent(sent, b.id), sent[b.id], sent[noneKey(b.id)], sent[appealKey(b.id)], sent[removedKey(b.id)],
                 onOptOut = { onOptOut(b, "") },
                 onBrowser = { onExternal(b.optOut) },
                 onEmail = {
@@ -289,6 +291,7 @@ fun HomeScreen(
                 },
                 onMarkSent = { onMarkSent(b) },
                 onSetNone = { on -> onSetNone(b, on) },
+                onSetRemoved = { on -> onSetRemoved(b, on) },
                 onNoId = { noId(b, clipLink(ctx, b)) },
                 onAppeal = { appeal(b, clipLink(ctx, b)) },
                 onUndoAppeal = { onUndoAppeal(b) },

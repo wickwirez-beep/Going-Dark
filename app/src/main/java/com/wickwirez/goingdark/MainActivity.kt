@@ -78,6 +78,9 @@ fun manualKey(id: String): String = "manual:" + id
 // Set when you checked a site and it has nothing on you.
 fun noneKey(id: String): String = "none:" + id
 
+// Set when the company confirmed it deleted or suppressed your data.
+fun removedKey(id: String): String = "removed:" + id
+
 // Texas law gives a business 45 days to answer a privacy request.
 const val REPLY_DAYS = 45
 const val DAY_MS = 24L * 60L * 60L * 1000L
@@ -111,7 +114,7 @@ fun dueSentence(sentAt: Long, now: Long): String {
 // True while a row still needs something from you: not sent yet, back on a site that had dropped you,
 // or sent and their time to answer ran out.
 fun needsAction(b: Broker, results: Map<String, BrokerResult>, sent: Map<String, Long>, now: Long): Boolean {
-    if (sent[noneKey(b.id)] != null) return false
+    if (sent[noneKey(b.id)] != null || sent[removedKey(b.id)] != null) return false
     val scanRow = b.search.isNotEmpty() && !b.hand
     if (scanRow && sent[manualKey(b.id)] == null && results[b.id]?.status == Status.CLEAR) return false
     val sentAt = firstSent(sent, b.id) ?: return true
@@ -167,6 +170,11 @@ fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent:
         val mark = if (sentAt != null) " [$sentOn]" else ""
         val markDue = if (sentAt != null) " [$sentOn, " + clockNote(sent, b.id, now) + "]" else ""
         sb.append(b.name).append(": ")
+        val removedAt = sent[removedKey(b.id)]
+        if (removedAt != null) {
+            sb.append("REMOVED (they confirmed ").append(dateText(removedAt)).append(")\n")
+            continue
+        }
         if (b.search.isEmpty()) {
             sb.append(
                 if (none) "not listed"

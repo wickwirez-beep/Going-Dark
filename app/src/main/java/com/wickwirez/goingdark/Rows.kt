@@ -100,6 +100,7 @@ fun BrokerRow(
     goneAt: Long?,
     back: Boolean,
     backNeedsYou: Boolean,
+    removedAt: Long?,
     onOpen: (String) -> Unit,
     onOptOut: (String) -> Unit,
     onSearchInBrowser: () -> Unit,
@@ -108,6 +109,7 @@ fun BrokerRow(
     onMarkSent: () -> Unit,
     onSetManual: (Boolean) -> Unit,
     onSetNone: (Boolean) -> Unit,
+    onSetRemoved: (Boolean) -> Unit,
     onReport: (String) -> Unit,
     onFinal: (String) -> Unit,
     onNoId: (String) -> Unit,
@@ -131,6 +133,7 @@ fun BrokerRow(
     // Their time is up: the 45 days of a request, or the 60 days of an appeal.
     val timeUp = if (appealAt != null) appealDaysLeft(appealAt, now) < 0 else late
     val label = when {
+        removedAt != null -> "REMOVED"
         b.hand -> if (noneAt != null) "NOT LISTED"
         else if (sentAt != null) (if (appealAt != null) appealDueText(appealAt, now) else dueText(sentAt, now)).uppercase()
         else "CHECK BY HAND"
@@ -139,6 +142,7 @@ fun BrokerRow(
         else -> rowLabel(r, sentAt)
     }
     val labelColor = when {
+        removedAt != null -> Green
         b.hand -> if (noneAt != null || (sentAt != null && !timeUp)) Green else Amber
         manual -> Pink
         else -> statusColor(r?.status)
@@ -154,7 +158,13 @@ fun BrokerRow(
         if (detail.isNotEmpty()) {
             Text(detail, color = Dim, fontSize = 11.sp, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (b.hand) {
+        if (removedAt != null) {
+            Text(
+                "Removed: they confirmed it on " + dateText(removedAt) + ". Nothing more to do here.",
+                color = Green, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+            )
+            RowButton("UNDO REMOVED") { onSetRemoved(false) }
+        } else if (b.hand) {
             Text(
                 "This site blocks the app's browser, so scans skip it. Check it in your own browser.",
                 color = Dim, fontSize = 12.sp
@@ -163,6 +173,7 @@ fun BrokerRow(
                 Text("Marked not listed " + dateText(noneAt), color = Green, fontSize = 12.sp)
             } else if (sentAt != null) {
                 Text(sentLine(sentAt, lastAt, now), color = if (late && appealAt == null) Amber else Green, fontSize = 12.sp)
+                RowButton("REMOVED: THEY CONFIRMED", primary = true) { onSetRemoved(true) }
                 if (late && appealAt == null) {
                     RowButton("REPORT TO TEXAS AG") { onReport("") }
                     if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal("") }
@@ -215,6 +226,7 @@ fun BrokerRow(
                     if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal(links) }
                 }
             }
+            if (sentAt != null) RowButton("REMOVED: THEY CONFIRMED", primary = true) { onSetRemoved(true) }
             if (back && goneAt != null) {
                 Text(
                     "This site dropped you: scans on two different days did not find you, the last on " +
@@ -270,6 +282,7 @@ fun FormRow(
     lastAt: Long?,
     noneAt: Long?,
     appealAt: Long?,
+    removedAt: Long?,
     onOptOut: () -> Unit,
     onBrowser: () -> Unit,
     onEmail: () -> Unit,
@@ -278,6 +291,7 @@ fun FormRow(
     onFinal: () -> Unit,
     onMarkSent: () -> Unit,
     onSetNone: (Boolean) -> Unit,
+    onSetRemoved: (Boolean) -> Unit,
     onNoId: () -> Unit,
     onAppeal: () -> Unit,
     onUndoAppeal: () -> Unit,
@@ -298,14 +312,15 @@ fun FormRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(b.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Text(
-                if (noneAt != null) "NOT LISTED"
+                if (removedAt != null) "REMOVED"
+                else if (noneAt != null) "NOT LISTED"
                 else if (sentAt != null) (
                     if (b.tool) "DONE"
                     else if (appealAt != null) appealDueText(appealAt, now).uppercase()
                     else dueText(sentAt, now).uppercase()
                 )
                 else if (b.tool) "NOT DONE" else "NOT SENT",
-                color = if (noneAt != null) Green else if (sentAt != null) (if (late) Amber else Green) else Dim,
+                color = if (removedAt != null || noneAt != null) Green else if (sentAt != null) (if (late) Amber else Green) else Dim,
                 fontSize = 12.sp, fontFamily = Mono
             )
         }
@@ -313,7 +328,13 @@ fun FormRow(
             Text(detail, color = Dim, fontSize = 11.sp, fontFamily = Mono, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (b.tip.isNotEmpty()) Text(b.tip, color = Dim, fontSize = 12.sp)
-        if (noneAt != null) {
+        if (removedAt != null) {
+            Text(
+                "Removed: they confirmed it on " + dateText(removedAt) + ". Nothing more to do here.",
+                color = Green, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+            )
+            RowButton("UNDO REMOVED") { onSetRemoved(false) }
+        } else if (noneAt != null) {
             Text(
                 "Marked not listed " + dateText(noneAt), color = Green, fontSize = 12.sp,
                 modifier = Modifier.padding(top = 6.dp)
@@ -327,6 +348,7 @@ fun FormRow(
                 color = if (late && !appealed) Amber else Green, fontSize = 12.sp,
                 modifier = Modifier.padding(top = 6.dp)
             )
+            if (!b.tool) RowButton("REMOVED: THEY CONFIRMED", primary = true) { onSetRemoved(true) }
             if (late && !appealed) {
                 RowButton("REPORT TO TEXAS AG") { onReport() }
                 if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal() }
