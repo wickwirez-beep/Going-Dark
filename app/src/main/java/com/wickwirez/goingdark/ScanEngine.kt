@@ -73,6 +73,8 @@ class ScanEngine(context: Context) {
             current = b.name
             step = "Loading the search"
             prepareWebView(webView, b.ua == "stock")
+            webView.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+            webView.clearCache(true)
             load(b.buildUrl(profile))
             var result = settle(b, pj)
             while (result.status == Status.BLOCKED) {
