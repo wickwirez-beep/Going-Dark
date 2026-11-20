@@ -25,6 +25,7 @@ fun GoingDarkApp() {
     var target by remember { mutableStateOf<Broker?>(null) }
     var targetUrl by remember { mutableStateOf("") }
     var todoOnly by remember { mutableStateOf(false) }
+    var overdueOnly by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     // What is in the search box, and where its results are scrolled to. Kept here so both are still there when
     // you come back from an opt-out page.
@@ -82,7 +83,9 @@ fun GoingDarkApp() {
                 else -> HomeScreen(
                     brokers, results, sent, profile, listState,
                     todoOnly = todoOnly,
-                    onTodoToggle = { todoOnly = !todoOnly },
+                    onTodoToggle = { todoOnly = !todoOnly; overdueOnly = false },
+                    overdueOnly = overdueOnly,
+                    onOverdueToggle = { overdueOnly = !overdueOnly; todoOnly = false },
                     query = query,
                     onQuery = { query = it },
                     searchState = searchState,

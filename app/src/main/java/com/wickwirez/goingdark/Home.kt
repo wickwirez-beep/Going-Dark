@@ -31,6 +31,8 @@ fun HomeScreen(
     listState: LazyListState,
     todoOnly: Boolean,
     onTodoToggle: () -> Unit,
+    overdueOnly: Boolean,
+    onOverdueToggle: () -> Unit,
     query: String,
     onQuery: (String) -> Unit,
     searchState: LazyListState,
@@ -62,6 +64,8 @@ fun HomeScreen(
     val scanned = scanList.count { sent[manualKey(it.id)] != null || results[it.id] != null }
     val now = System.currentTimeMillis()
     val todoCount = brokers.count { needsAction(it, results, sent, now) }
+    // Rows whose 45 days (or 60 days of an appeal) ran out and that still need you, longest overdue first.
+    val overdueCount = brokers.count { isOverdue(it, results, sent, now) }
     // The search box looks through every row, even with SHOW TO-DO ONLY on.
     val words = searchWords(query)
     val searching = words.isNotEmpty()
@@ -69,11 +73,15 @@ fun HomeScreen(
     val found: (Broker) -> Boolean = { b -> words.all { (hay[b.id] ?: "").contains(it) } }
     val shownSites = when {
         searching -> siteRows.filter(found)
+        overdueOnly -> siteRows.filter { isOverdue(it, results, sent, now) }
+            .sortedByDescending { overdueDays(it, sent, now) }
         todoOnly -> siteRows.filter { needsAction(it, results, sent, now) }
         else -> siteRows
     }
     val shownForms = when {
         searching -> formOnly.filter(found)
+        overdueOnly -> formOnly.filter { isOverdue(it, results, sent, now) }
+            .sortedByDescending { overdueDays(it, sent, now) }
         todoOnly -> formOnly.filter { needsAction(it, results, sent, now) }
         else -> formOnly
     }
@@ -220,7 +228,28 @@ fun HomeScreen(
             ) {
                 Text(if (todoOnly) "SHOW ALL ROWS" else "SHOW TO-DO ONLY (" + todoCount + ")", fontFamily = Mono)
             }
-            if (todoOnly && todoCount == 0) {
+            if (overdueCount > 0 || overdueOnly) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onOverdueToggle, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        if (overdueOnly) "SHOW ALL ROWS" else "SHOW OVERDUE ONLY (" + overdueCount + ")",
+                        fontFamily = Mono, color = Amber
+                    )
+                }
+            }
+            if (overdueOnly && overdueCount > 0) {
+                Text(
+                    "Longest overdue first. Each row says what to tap. If a company replied, tap what they said " +
+                        "instead (REMOVED: THEY CONFIRMED, THEY WANT ID, THEY SAID NO).",
+                    color = Dim, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+            if (overdueOnly && overdueCount == 0) {
+                Text("Nobody is overdue right now.", color = Green, fontSize = 13.sp)
+            }
+            if (todoOnly && !overdueOnly && todoCount == 0) {
                 Text("Nothing needs you right now.", color = Green, fontSize = 13.sp)
             }
             Spacer(Modifier.height(14.dp))
@@ -229,6 +258,8 @@ fun HomeScreen(
             val r = results[b.id]
             val first = firstSent(sent, b.id)
             val goneAt = sent[goneKey(b.id)]
+            Column {
+            if (overdueOnly && !searching) OverdueHint(b, sent, now)
             BrokerRow(
                 b, r, first, sent[b.id], sent[manualKey(b.id)] != null, sent[noneKey(b.id)],
                 sent[appealKey(b.id)], goneAt, isBack(b, r, sent), backNeedsYou(b, r, sent), sent[removedKey(b.id)],
@@ -262,6 +293,7 @@ fun HomeScreen(
                 },
                 detail = if (searching) b.contact() else ""
             )
+            }
         }
         if (!searching) item {
             Spacer(Modifier.height(18.dp))
@@ -274,6 +306,8 @@ fun HomeScreen(
             Spacer(Modifier.height(6.dp))
         }
         items(shownForms, key = { it.id }) { b ->
+            Column {
+            if (overdueOnly && !searching) OverdueHint(b, sent, now)
             FormRow(
                 b, firstSent(sent, b.id), sent[b.id], sent[noneKey(b.id)], sent[appealKey(b.id)], sent[removedKey(b.id)],
                 onOptOut = { onOptOut(b, "") },
@@ -298,6 +332,7 @@ fun HomeScreen(
                 onAppealReport = { denied -> appealReport(b, clipLink(ctx, b), denied) },
                 detail = if (searching) b.contact() else ""
             )
+            }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
@@ -335,5 +370,35 @@ fun SearchBox(query: String, onQuery: (String) -> Unit, onSearch: () -> Unit) {
         singleLine = true,
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { onSearch() })
+    )
+}
+
+// Days past their deadline: 45 days from your first request, or 60 days from your appeal. Zero when not late.
+fun overdueDays(b: Broker, sent: Map<String, Long>, now: Long): Int {
+    val due = deadlineAt(b, sent) ?: return 0
+    return maxOf(0, daysBetween(due, now))
+}
+
+// Their time is up and the row still needs you.
+fun isOverdue(b: Broker, results: Map<String, BrokerResult>, sent: Map<String, Long>, now: Long): Boolean =
+    timeUp(b, sent, now) && needsAction(b, results, sent, now)
+
+// One plain line above an overdue row: what to tap, depending on whether the company has an email address.
+@Composable
+fun OverdueHint(b: Broker, sent: Map<String, Long>, now: Long) {
+    val days = overdueDays(b, sent, now)
+    val late = if (days == 1) "1 day overdue" else "$days days overdue"
+    val what = when {
+        sent[appealKey(b.id)] != null ->
+            "Their time to answer your appeal ran out. Tap REPORT TO TEXAS AG."
+        b.email.isNotEmpty() ->
+            "No answer in 45 days. Tap SEND FINAL NOTICE. If they stay silent for two more weeks, tap REPORT TO TEXAS AG."
+        else ->
+            "No email address on file, so no final notice. Resubmit their form (OPT-OUT AGAIN, or OPT OUT IN BROWSER). " +
+                "If they stay silent for a week after that, tap REPORT TO TEXAS AG."
+    }
+    Text(
+        late.uppercase() + ": " + what, color = Amber, fontSize = 12.sp,
+        modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp)
     )
 }

@@ -14,7 +14,7 @@ function (P) {
     out.blocked = true;
     return JSON.stringify(out);
   }
-  out.none = /no (results|records|matches|people) (were )?found|no results for|returned no results|(did not|didn['\u2019]t|could not|couldn['\u2019]t) find any|(^|[^0-9])0 (results|records|matches)|we found 0\b/.test(low);
+  out.none = /we (did not|didn['\u2019]t) find |broadened your search|no (results|records|matches|people) (were )?found|no results for|returned no results|(did not|didn['\u2019]t|could not|couldn['\u2019]t) find any|(^|[^0-9])0 (results|records|matches)|we found 0\b/.test(low);
 
   var names = [];
   function addName(f, l) {
