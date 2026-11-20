@@ -81,6 +81,9 @@ fun noneKey(id: String): String = "none:" + id
 // Set when the company confirmed it deleted or suppressed your data.
 fun removedKey(id: String): String = "removed:" + id
 
+// Set when you filed a complaint about this company with the Texas Attorney General.
+fun reportedKey(id: String): String = "reported:" + id
+
 // Texas law gives a business 45 days to answer a privacy request.
 const val REPLY_DAYS = 45
 const val DAY_MS = 24L * 60L * 60L * 1000L
@@ -114,7 +117,7 @@ fun dueSentence(sentAt: Long, now: Long): String {
 // True while a row still needs something from you: not sent yet, back on a site that had dropped you,
 // or sent and their time to answer ran out.
 fun needsAction(b: Broker, results: Map<String, BrokerResult>, sent: Map<String, Long>, now: Long): Boolean {
-    if (sent[noneKey(b.id)] != null || sent[removedKey(b.id)] != null) return false
+    if (sent[noneKey(b.id)] != null || sent[removedKey(b.id)] != null || sent[reportedKey(b.id)] != null) return false
     val scanRow = b.search.isNotEmpty() && !b.hand
     if (scanRow && sent[manualKey(b.id)] == null && results[b.id]?.status == Status.CLEAR) return false
     val sentAt = firstSent(sent, b.id) ?: return true
@@ -173,6 +176,11 @@ fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent:
         val removedAt = sent[removedKey(b.id)]
         if (removedAt != null) {
             sb.append("REMOVED (they confirmed ").append(dateText(removedAt)).append(")\n")
+            continue
+        }
+        val reportedAt = sent[reportedKey(b.id)]
+        if (reportedAt != null) {
+            sb.append("REPORTED TO TEXAS AG (").append(dateText(reportedAt)).append(")").append(mark).append("\n")
             continue
         }
         if (b.search.isEmpty()) {

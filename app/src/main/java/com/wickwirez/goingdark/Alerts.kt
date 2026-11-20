@@ -24,7 +24,7 @@ const val SCAN_NUDGE_DAYS = 7
 
 // True once a sent request is past its 45 days, or past the 60 days of its appeal.
 fun timeUp(b: Broker, sent: Map<String, Long>, at: Long): Boolean {
-    if (b.tool || sent[removedKey(b.id)] != null) return false
+    if (b.tool || sent[removedKey(b.id)] != null || sent[reportedKey(b.id)] != null) return false
     val first = firstSent(sent, b.id) ?: return false
     val appealAt = sent[appealKey(b.id)]
     return if (appealAt != null) appealDaysLeft(appealAt, at) < 0 else daysLeft(first, at) < 0

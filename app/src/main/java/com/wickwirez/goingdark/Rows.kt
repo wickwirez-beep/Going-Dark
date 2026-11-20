@@ -88,6 +88,28 @@ fun AppealBlock(
     }
 }
 
+// Once their time is up: file a complaint with the Texas AG, then mark it so the row stops asking.
+@Composable
+fun ReportBlock(
+    reportedAt: Long?,
+    hasEmail: Boolean,
+    onReport: () -> Unit,
+    onFinal: () -> Unit,
+    onSetReported: (Boolean) -> Unit
+) {
+    if (reportedAt != null) {
+        Text(
+            "Reported to the Texas AG on " + dateText(reportedAt) + ". Waiting on them.",
+            color = Cyan, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+        )
+        RowButton("UNDO REPORTED") { onSetReported(false) }
+    } else {
+        RowButton("REPORT TO TEXAS AG") { onReport() }
+        RowButton("MARK AS REPORTED") { onSetReported(true) }
+        if (hasEmail) RowButton("SEND FINAL NOTICE") { onFinal() }
+    }
+}
+
 @Composable
 fun BrokerRow(
     b: Broker,
@@ -101,6 +123,7 @@ fun BrokerRow(
     back: Boolean,
     backNeedsYou: Boolean,
     removedAt: Long?,
+    reportedAt: Long?,
     onOpen: (String) -> Unit,
     onOptOut: (String) -> Unit,
     onSearchInBrowser: () -> Unit,
@@ -110,6 +133,7 @@ fun BrokerRow(
     onSetManual: (Boolean) -> Unit,
     onSetNone: (Boolean) -> Unit,
     onSetRemoved: (Boolean) -> Unit,
+    onSetReported: (Boolean) -> Unit,
     onReport: (String) -> Unit,
     onFinal: (String) -> Unit,
     onNoId: (String) -> Unit,
@@ -134,6 +158,7 @@ fun BrokerRow(
     val timeUp = if (appealAt != null) appealDaysLeft(appealAt, now) < 0 else late
     val label = when {
         removedAt != null -> "REMOVED"
+        reportedAt != null -> "REPORTED"
         b.hand -> if (noneAt != null) "NOT LISTED"
         else if (sentAt != null) (if (appealAt != null) appealDueText(appealAt, now) else dueText(sentAt, now)).uppercase()
         else "CHECK BY HAND"
@@ -143,6 +168,7 @@ fun BrokerRow(
     }
     val labelColor = when {
         removedAt != null -> Green
+        reportedAt != null -> Cyan
         b.hand -> if (noneAt != null || (sentAt != null && !timeUp)) Green else Amber
         manual -> Pink
         else -> statusColor(r?.status)
@@ -175,8 +201,7 @@ fun BrokerRow(
                 Text(sentLine(sentAt, lastAt, now), color = if (late && appealAt == null) Amber else Green, fontSize = 12.sp)
                 RowButton("REMOVED: THEY CONFIRMED", primary = true) { onSetRemoved(true) }
                 if (late && appealAt == null) {
-                    RowButton("REPORT TO TEXAS AG") { onReport("") }
-                    if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal("") }
+                    ReportBlock(reportedAt, b.email.isNotEmpty(), { onReport("") }, { onFinal("") }, onSetReported)
                 }
             }
             RowButton("CHECK IN BROWSER") { onSearchInBrowser() }
@@ -223,8 +248,7 @@ fun BrokerRow(
                     modifier = Modifier.padding(top = 8.dp)
                 )
                 if (late && appealAt == null) {
-                    RowButton("REPORT TO TEXAS AG") { onReport(links) }
-                    if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal(links) }
+                    ReportBlock(reportedAt, b.email.isNotEmpty(), { onReport(links) }, { onFinal(links) }, onSetReported)
                 }
             }
             RowButton("REMOVED: THEY CONFIRMED", primary = sentAt != null) { onSetRemoved(true) }
@@ -284,6 +308,7 @@ fun FormRow(
     noneAt: Long?,
     appealAt: Long?,
     removedAt: Long?,
+    reportedAt: Long?,
     onOptOut: () -> Unit,
     onBrowser: () -> Unit,
     onEmail: () -> Unit,
@@ -293,6 +318,7 @@ fun FormRow(
     onMarkSent: () -> Unit,
     onSetNone: (Boolean) -> Unit,
     onSetRemoved: (Boolean) -> Unit,
+    onSetReported: (Boolean) -> Unit,
     onNoId: () -> Unit,
     onAppeal: () -> Unit,
     onUndoAppeal: () -> Unit,
@@ -314,6 +340,7 @@ fun FormRow(
             Text(b.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Text(
                 if (removedAt != null) "REMOVED"
+                else if (reportedAt != null) "REPORTED"
                 else if (noneAt != null) "NOT LISTED"
                 else if (sentAt != null) (
                     if (b.tool) "DONE"
@@ -321,7 +348,7 @@ fun FormRow(
                     else dueText(sentAt, now).uppercase()
                 )
                 else if (b.tool) "NOT DONE" else "NOT SENT",
-                color = if (removedAt != null || noneAt != null) Green else if (sentAt != null) (if (late) Amber else Green) else Dim,
+                color = if (removedAt != null || noneAt != null) Green else if (reportedAt != null) Cyan else if (sentAt != null) (if (late) Amber else Green) else Dim,
                 fontSize = 12.sp, fontFamily = Mono
             )
         }
@@ -351,8 +378,7 @@ fun FormRow(
             )
             if (!b.tool) RowButton("REMOVED: THEY CONFIRMED", primary = true) { onSetRemoved(true) }
             if (late && !appealed) {
-                RowButton("REPORT TO TEXAS AG") { onReport() }
-                if (b.email.isNotEmpty()) RowButton("SEND FINAL NOTICE") { onFinal() }
+                ReportBlock(reportedAt, b.email.isNotEmpty(), onReport, onFinal, onSetReported)
             }
             if (b.find.isNotEmpty()) RowButton("FIND ME ON THIS SITE") { onFind() }
             if (b.optOut.isNotEmpty()) {
