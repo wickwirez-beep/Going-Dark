@@ -126,6 +126,10 @@ fun GoingDarkApp() {
                         if (on) sent[reportedKey(b.id)] = System.currentTimeMillis() else sent.remove(reportedKey(b.id))
                         save()
                     },
+                    onSetPending = { b, on ->
+                        if (on) sent[pendingKey(b.id)] = System.currentTimeMillis() else sent.remove(pendingKey(b.id))
+                        save()
+                    },
                     onAppeal = { b ->
                         sent[appealKey(b.id)] = System.currentTimeMillis()
                         save()

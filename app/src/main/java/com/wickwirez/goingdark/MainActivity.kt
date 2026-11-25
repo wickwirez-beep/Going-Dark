@@ -84,6 +84,9 @@ fun removedKey(id: String): String = "removed:" + id
 // Set when you filed a complaint about this company with the Texas Attorney General.
 fun reportedKey(id: String): String = "reported:" + id
 
+// Set when the company replied to your request but has not finished it yet.
+fun pendingKey(id: String): String = "pending:" + id
+
 // Texas law gives a business 45 days to answer a privacy request.
 const val REPLY_DAYS = 45
 const val DAY_MS = 24L * 60L * 60L * 1000L
@@ -181,6 +184,11 @@ fun buildReport(brokers: List<Broker>, results: Map<String, BrokerResult>, sent:
         val reportedAt = sent[reportedKey(b.id)]
         if (reportedAt != null) {
             sb.append("REPORTED TO TEXAS AG (").append(dateText(reportedAt)).append(")").append(mark).append("\n")
+            continue
+        }
+        val pendingAt = sent[pendingKey(b.id)]
+        if (pendingAt != null) {
+            sb.append("PENDING (they replied ").append(dateText(pendingAt)).append(")").append(markDue).append("\n")
             continue
         }
         if (b.search.isEmpty()) {

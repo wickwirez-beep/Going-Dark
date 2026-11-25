@@ -110,6 +110,20 @@ fun ReportBlock(
     }
 }
 
+// They replied but have not finished: record it so the row says so. Their 45 days still count.
+@Composable
+fun PendingBlock(pendingAt: Long?, onSetPending: (Boolean) -> Unit) {
+    if (pendingAt != null) {
+        Text(
+            "They replied on " + dateText(pendingAt) + " but have not finished. Waiting on them.",
+            color = Cyan, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+        )
+        RowButton("UNDO PENDING") { onSetPending(false) }
+    } else {
+        RowButton("PENDING: THEY REPLIED") { onSetPending(true) }
+    }
+}
+
 @Composable
 fun BrokerRow(
     b: Broker,
@@ -124,6 +138,7 @@ fun BrokerRow(
     backNeedsYou: Boolean,
     removedAt: Long?,
     reportedAt: Long?,
+    pendingAt: Long?,
     onOpen: (String) -> Unit,
     onOptOut: (String) -> Unit,
     onSearchInBrowser: () -> Unit,
@@ -134,6 +149,7 @@ fun BrokerRow(
     onSetNone: (Boolean) -> Unit,
     onSetRemoved: (Boolean) -> Unit,
     onSetReported: (Boolean) -> Unit,
+    onSetPending: (Boolean) -> Unit,
     onReport: (String) -> Unit,
     onFinal: (String) -> Unit,
     onNoId: (String) -> Unit,
@@ -159,6 +175,7 @@ fun BrokerRow(
     val label = when {
         removedAt != null -> "REMOVED"
         reportedAt != null -> "REPORTED"
+        pendingAt != null -> "PENDING"
         b.hand -> if (noneAt != null) "NOT LISTED"
         else if (sentAt != null) (if (appealAt != null) appealDueText(appealAt, now) else dueText(sentAt, now)).uppercase()
         else "CHECK BY HAND"
@@ -169,6 +186,7 @@ fun BrokerRow(
     val labelColor = when {
         removedAt != null -> Green
         reportedAt != null -> Cyan
+        pendingAt != null -> Cyan
         b.hand -> if (noneAt != null || (sentAt != null && !timeUp)) Green else Amber
         manual -> Pink
         else -> statusColor(r?.status)
@@ -200,6 +218,7 @@ fun BrokerRow(
             } else if (sentAt != null) {
                 Text(sentLine(sentAt, lastAt, now), color = if (late && appealAt == null) Amber else Green, fontSize = 12.sp)
                 RowButton("REMOVED: THEY CONFIRMED", primary = true) { onSetRemoved(true) }
+                PendingBlock(pendingAt, onSetPending)
                 if (late && appealAt == null) {
                     ReportBlock(reportedAt, b.email.isNotEmpty(), { onReport("") }, { onFinal("") }, onSetReported)
                 }
@@ -252,6 +271,7 @@ fun BrokerRow(
                 }
             }
             RowButton("REMOVED: THEY CONFIRMED", primary = sentAt != null) { onSetRemoved(true) }
+            if (sentAt != null && listed) PendingBlock(pendingAt, onSetPending)
             if (back && goneAt != null) {
                 Text(
                     "This site dropped you: scans on two different days did not find you, the last on " +
@@ -309,6 +329,7 @@ fun FormRow(
     appealAt: Long?,
     removedAt: Long?,
     reportedAt: Long?,
+    pendingAt: Long?,
     onOptOut: () -> Unit,
     onBrowser: () -> Unit,
     onEmail: () -> Unit,
@@ -319,6 +340,7 @@ fun FormRow(
     onSetNone: (Boolean) -> Unit,
     onSetRemoved: (Boolean) -> Unit,
     onSetReported: (Boolean) -> Unit,
+    onSetPending: (Boolean) -> Unit,
     onNoId: () -> Unit,
     onAppeal: () -> Unit,
     onUndoAppeal: () -> Unit,
@@ -342,13 +364,14 @@ fun FormRow(
                 if (removedAt != null) "REMOVED"
                 else if (reportedAt != null) "REPORTED"
                 else if (noneAt != null) "NOT LISTED"
+                else if (pendingAt != null) "PENDING"
                 else if (sentAt != null) (
                     if (b.tool) "DONE"
                     else if (appealAt != null) appealDueText(appealAt, now).uppercase()
                     else dueText(sentAt, now).uppercase()
                 )
                 else if (b.tool) "NOT DONE" else "NOT SENT",
-                color = if (removedAt != null || noneAt != null) Green else if (reportedAt != null) Cyan else if (sentAt != null) (if (late) Amber else Green) else Dim,
+                color = if (removedAt != null || noneAt != null) Green else if (reportedAt != null || pendingAt != null) Cyan else if (sentAt != null) (if (late) Amber else Green) else Dim,
                 fontSize = 12.sp, fontFamily = Mono
             )
         }
@@ -377,6 +400,7 @@ fun FormRow(
                 modifier = Modifier.padding(top = 6.dp)
             )
             if (!b.tool) RowButton("REMOVED: THEY CONFIRMED", primary = true) { onSetRemoved(true) }
+            if (!b.tool) PendingBlock(pendingAt, onSetPending)
             if (late && !appealed) {
                 ReportBlock(reportedAt, b.email.isNotEmpty(), onReport, onFinal, onSetReported)
             }

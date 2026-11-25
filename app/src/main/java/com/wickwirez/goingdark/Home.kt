@@ -45,6 +45,7 @@ fun HomeScreen(
     onSetNone: (Broker, Boolean) -> Unit,
     onSetRemoved: (Broker, Boolean) -> Unit,
     onSetReported: (Broker, Boolean) -> Unit,
+    onSetPending: (Broker, Boolean) -> Unit,
     onAppeal: (Broker) -> Unit,
     onUndoAppeal: (Broker) -> Unit,
     onTimerToggle: () -> Unit,
@@ -264,7 +265,7 @@ fun HomeScreen(
             BrokerRow(
                 b, r, first, sent[b.id], sent[manualKey(b.id)] != null, sent[noneKey(b.id)],
                 sent[appealKey(b.id)], goneAt, isBack(b, r, sent), backNeedsYou(b, r, sent), sent[removedKey(b.id)],
-                sent[reportedKey(b.id)],
+                sent[reportedKey(b.id)], sent[pendingKey(b.id)],
                 onOpen = { url -> onExternal(url) },
                 onOptOut = { url -> onOptOut(b, url) },
                 onSearchInBrowser = { onExternal(b.buildUrl(profile)) },
@@ -275,6 +276,7 @@ fun HomeScreen(
                 onSetNone = { on -> onSetNone(b, on) },
                 onSetRemoved = { on -> onSetRemoved(b, on) },
                 onSetReported = { on -> onSetReported(b, on) },
+                onSetPending = { on -> onSetPending(b, on) },
                 onReport = { url -> report(b, url.ifEmpty { clipLink(ctx, b) }) },
                 onFinal = { url ->
                     val t = System.currentTimeMillis()
@@ -313,7 +315,7 @@ fun HomeScreen(
             if (overdueOnly && !searching) OverdueHint(b, sent, now)
             FormRow(
                 b, firstSent(sent, b.id), sent[b.id], sent[noneKey(b.id)], sent[appealKey(b.id)], sent[removedKey(b.id)],
-                sent[reportedKey(b.id)],
+                sent[reportedKey(b.id)], sent[pendingKey(b.id)],
                 onOptOut = { onOptOut(b, "") },
                 onBrowser = { onExternal(b.optOut) },
                 onEmail = {
@@ -331,6 +333,7 @@ fun HomeScreen(
                 onSetNone = { on -> onSetNone(b, on) },
                 onSetRemoved = { on -> onSetRemoved(b, on) },
                 onSetReported = { on -> onSetReported(b, on) },
+                onSetPending = { on -> onSetPending(b, on) },
                 onNoId = { noId(b, clipLink(ctx, b)) },
                 onAppeal = { appeal(b, clipLink(ctx, b)) },
                 onUndoAppeal = { onUndoAppeal(b) },
