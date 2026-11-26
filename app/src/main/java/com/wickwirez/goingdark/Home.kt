@@ -39,6 +39,8 @@ fun HomeScreen(
     onScan: () -> Unit,
     onProfile: () -> Unit,
     onHelp: () -> Unit,
+    onStartNext: () -> Unit,
+    onFinalSent: (Broker) -> Unit,
     onOptOut: (Broker, String) -> Unit,
     onExternal: (String) -> Unit,
     onMarkSent: (Broker) -> Unit,
@@ -64,6 +66,7 @@ fun HomeScreen(
     val clear = scanList.count {
         sent[manualKey(it.id)] == null && results[it.id]?.status == Status.CLEAR
     }
+    val unsentCount = brokers.count { isUnsent(it, sent) }
     val scanned = scanList.count { sent[manualKey(it.id)] != null || results[it.id] != null }
     val now = System.currentTimeMillis()
     val todoCount = brokers.count { needsAction(it, results, sent, now) }
@@ -198,6 +201,15 @@ fun HomeScreen(
             ) {
                 Text("RUN SCAN", fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
+            if (unsentCount > 0) {
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = onStartNext, enabled = profile.ready,
+                    modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("START NEXT UNSENT ($unsentCount LEFT)", fontFamily = Mono, fontWeight = FontWeight.Bold)
+                }
+            }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
                 onClick = onProfile, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)
@@ -269,6 +281,7 @@ fun HomeScreen(
             val goneAt = sent[goneKey(b.id)]
             Column {
             if (overdueOnly && !searching) OverdueHint(b, sent, now)
+            FollowUpNote(b, sent, now)
             BrokerRow(
                 b, r, first, sent[b.id], sent[manualKey(b.id)] != null, sent[noneKey(b.id)],
                 sent[appealKey(b.id)], goneAt, isBack(b, r, sent), backNeedsYou(b, r, sent), sent[removedKey(b.id)],
@@ -288,6 +301,7 @@ fun HomeScreen(
                 onFinal = { url ->
                     val t = System.currentTimeMillis()
                     onExternal(b.finalMailto(profile, first ?: t, t, url.ifEmpty { clipLink(ctx, b) }))
+                    onFinalSent(b)
                 },
                 onNoId = { url -> noId(b, url.ifEmpty { clipLink(ctx, b) }) },
                 onAppeal = { url -> appeal(b, url.ifEmpty { clipLink(ctx, b) }) },
@@ -320,6 +334,7 @@ fun HomeScreen(
         items(shownForms, key = { it.id }) { b ->
             Column {
             if (overdueOnly && !searching) OverdueHint(b, sent, now)
+            FollowUpNote(b, sent, now)
             FormRow(
                 b, firstSent(sent, b.id), sent[b.id], sent[noneKey(b.id)], sent[appealKey(b.id)], sent[removedKey(b.id)],
                 sent[reportedKey(b.id)], sent[pendingKey(b.id)],
@@ -335,6 +350,7 @@ fun HomeScreen(
                 onFinal = {
                     val t = System.currentTimeMillis()
                     onExternal(b.finalMailto(profile, firstSent(sent, b.id) ?: t, t, clipLink(ctx, b)))
+                    onFinalSent(b)
                 },
                 onMarkSent = { onMarkSent(b) },
                 onSetNone = { on -> onSetNone(b, on) },

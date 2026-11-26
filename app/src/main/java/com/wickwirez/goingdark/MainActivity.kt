@@ -128,6 +128,8 @@ fun needsAction(b: Broker, results: Map<String, BrokerResult>, sent: Map<String,
     val appealAt = sent[appealKey(b.id)]
     if (appealAt != null) return appealDaysLeft(appealAt, now) < 0
     if (backNeedsYou(b, results[b.id], sent)) return true
+    // You already sent a final notice or sent it again: the row waits, then asks again.
+    if (waitingUntil(b, sent, now) != null) return false
     return daysLeft(sentAt, now) < 0
 }
 

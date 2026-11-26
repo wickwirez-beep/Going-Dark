@@ -26,6 +26,8 @@ fun GoingDarkApp() {
     var targetUrl by remember { mutableStateOf("") }
     var todoOnly by remember { mutableStateOf(false) }
     var overdueOnly by remember { mutableStateOf(false) }
+    // True while START NEXT UNSENT is walking through the opt-outs you have not sent yet.
+    var chain by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     // What is in the search box, and where its results are scrolled to. Kept here so both are still there when
     // you come back from an opt-out page.
@@ -47,20 +49,39 @@ fun GoingDarkApp() {
         Box(Modifier.fillMaxSize().background(Bg).safeDrawingPadding()) {
             val t = target
             when {
-                screen == Screen.OPTOUT && t != null -> OptOutScreen(
-                    t, profile, targetUrl,
-                    onSent = {
-                        markSent(sent, t.id, System.currentTimeMillis())
-                        touch()
-                        screen = Screen.HOME
-                    },
-                    onNone = {
-                        sent[noneKey(t.id)] = System.currentTimeMillis()
-                        touch()
-                        screen = Screen.HOME
-                    },
-                    onExit = { screen = Screen.HOME }
-                )
+                screen == Screen.OPTOUT && t != null -> key(t.id) {
+                    OptOutScreen(
+                        t, profile, targetUrl,
+                        onSent = {
+                            markSent(sent, t.id, System.currentTimeMillis())
+                            touch()
+                            val n = if (chain) nextUnsent(brokers, sent) else null
+                            if (n != null) {
+                                target = n
+                                targetUrl = ""
+                            } else {
+                                chain = false
+                                screen = Screen.HOME
+                            }
+                        },
+                        onNone = {
+                            sent[noneKey(t.id)] = System.currentTimeMillis()
+                            touch()
+                            val n = if (chain) nextUnsent(brokers, sent) else null
+                            if (n != null) {
+                                target = n
+                                targetUrl = ""
+                            } else {
+                                chain = false
+                                screen = Screen.HOME
+                            }
+                        },
+                        onExit = {
+                            chain = false
+                            screen = Screen.HOME
+                        }
+                    )
+                }
                 screen == Screen.PROFILE -> ProfileScreen(
                     profile,
                     canGoBack = profile.ready,
@@ -96,6 +117,20 @@ fun GoingDarkApp() {
                     onScan = { screen = Screen.SCAN },
                     onProfile = { screen = Screen.PROFILE },
                     onHelp = { screen = Screen.HELP },
+                    onFinalSent = { b ->
+                        sent[finalKey(b.id)] = System.currentTimeMillis()
+                        save()
+                    },
+                    onStartNext = {
+                        val n = nextUnsent(brokers, sent)
+                        if (n != null) {
+                            chain = true
+                            touch()
+                            target = n
+                            targetUrl = ""
+                            screen = Screen.OPTOUT
+                        }
+                    },
                     onOptOut = { b, url ->
                         touch()
                         target = b
