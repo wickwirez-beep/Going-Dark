@@ -38,6 +38,7 @@ fun HomeScreen(
     searchState: LazyListState,
     onScan: () -> Unit,
     onProfile: () -> Unit,
+    onHelp: () -> Unit,
     onOptOut: (Broker, String) -> Unit,
     onExternal: (String) -> Unit,
     onMarkSent: (Broker) -> Unit,
@@ -212,6 +213,12 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)
             ) {
                 Text("COPY REPORT", fontFamily = Mono)
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onHelp, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("HELP AND GUIDE", fontFamily = Mono)
             }
             Spacer(Modifier.height(10.dp))
             Text("Find sites this app does not know about:", color = Dim, fontSize = 12.sp)

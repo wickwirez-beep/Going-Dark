@@ -80,6 +80,10 @@ fun GoingDarkApp() {
                     },
                     onExit = { screen = Screen.HOME }
                 )
+                screen == Screen.HELP -> HelpScreen(
+                    onBack = { screen = Screen.HOME },
+                    onOpen = { url -> openUrl(ctx, url) }
+                )
                 else -> HomeScreen(
                     brokers, results, sent, profile, listState,
                     todoOnly = todoOnly,
@@ -91,6 +95,7 @@ fun GoingDarkApp() {
                     searchState = searchState,
                     onScan = { screen = Screen.SCAN },
                     onProfile = { screen = Screen.PROFILE },
+                    onHelp = { screen = Screen.HELP },
                     onOptOut = { b, url ->
                         touch()
                         target = b

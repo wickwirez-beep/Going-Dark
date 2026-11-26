@@ -42,6 +42,11 @@ fun ProfileScreen(initial: Profile, canGoBack: Boolean, onBack: () -> Unit, onSa
             "Encrypted on this phone and never uploaded. Used only to build the searches, recognise your listings and fill in opt-out forms.",
             color = Dim, fontSize = 13.sp
         )
+        Text(
+            "New here? After you save, tap RUN SCAN to check about 15 sites automatically. The rest of the list is " +
+                "opt-out requests you send from each row. HELP AND GUIDE on the home screen answers the questions you will have.",
+            color = Dim, fontSize = 13.sp
+        )
         Field(first, { first = it }, "First name")
         Field(middle, { middle = it }, "Middle name or initial (optional)")
         Field(last, { last = it }, "Last name")

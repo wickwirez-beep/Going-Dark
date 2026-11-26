@@ -26,7 +26,7 @@ val Ink = Color(0xFFD7E3EA)
 val Dim = Color(0xFF6B7C88)
 val Mono = FontFamily.Monospace
 
-enum class Screen { HOME, PROFILE, SCAN, OPTOUT }
+enum class Screen { HOME, PROFILE, SCAN, OPTOUT, HELP }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
