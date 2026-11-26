@@ -280,8 +280,6 @@ fun HomeScreen(
             val first = firstSent(sent, b.id)
             val goneAt = sent[goneKey(b.id)]
             Column {
-            if (overdueOnly && !searching) OverdueHint(b, sent, now)
-            FollowUpNote(b, sent, now)
             BrokerRow(
                 b, r, first, sent[b.id], sent[manualKey(b.id)] != null, sent[noneKey(b.id)],
                 sent[appealKey(b.id)], goneAt, isBack(b, r, sent), backNeedsYou(b, r, sent), sent[removedKey(b.id)],
@@ -319,6 +317,9 @@ fun HomeScreen(
                 },
                 detail = if (searching) b.contact() else ""
             )
+            if (overdueOnly && !searching) OverdueHint(b, sent, now)
+            FollowUpNote(b, sent, now)
+            HorizontalDivider(Modifier.padding(top = 14.dp, bottom = 10.dp), thickness = 2.dp, color = Cyan.copy(alpha = 0.35f))
             }
         }
         if (!searching) item {
@@ -333,8 +334,6 @@ fun HomeScreen(
         }
         items(shownForms, key = { it.id }) { b ->
             Column {
-            if (overdueOnly && !searching) OverdueHint(b, sent, now)
-            FollowUpNote(b, sent, now)
             FormRow(
                 b, firstSent(sent, b.id), sent[b.id], sent[noneKey(b.id)], sent[appealKey(b.id)], sent[removedKey(b.id)],
                 sent[reportedKey(b.id)], sent[pendingKey(b.id)],
@@ -363,6 +362,9 @@ fun HomeScreen(
                 onAppealReport = { denied -> appealReport(b, clipLink(ctx, b), denied) },
                 detail = if (searching) b.contact() else ""
             )
+            if (overdueOnly && !searching) OverdueHint(b, sent, now)
+            FollowUpNote(b, sent, now)
+            HorizontalDivider(Modifier.padding(top = 14.dp, bottom = 10.dp), thickness = 2.dp, color = Cyan.copy(alpha = 0.35f))
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
