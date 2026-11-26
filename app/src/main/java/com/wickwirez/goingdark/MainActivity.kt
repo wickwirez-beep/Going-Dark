@@ -90,7 +90,7 @@ fun pendingKey(id: String): String = "pending:" + id
 // Texas law gives a business 45 days to answer a privacy request.
 const val REPLY_DAYS = 45
 const val DAY_MS = 24L * 60L * 60L * 1000L
-const val AG_COMPLAINT = "https://consumerprotection.texasattorneygeneral.gov/"
+const val AG_COMPLAINT = "https://www.texasattorneygeneral.gov/consumer-protection/file-consumer-complaint"
 
 // Days they have left to answer, counted in calendar days from the day you sent it. Below zero once they are late.
 fun daysLeft(sentAt: Long, now: Long): Int = REPLY_DAYS - daysBetween(sentAt, now)

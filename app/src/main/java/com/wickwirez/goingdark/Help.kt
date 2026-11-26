@@ -71,8 +71,8 @@ EMAIL AGAIN / OPT-OUT AGAIN: send the request a second time.
 THEY WANT ID: copies a reply that politely declines to send ID.
 THEY SAID NO: copies an appeal and starts a 60-day clock.
 SEND FINAL NOTICE: a firmer second email, once their time is up.
-REPORT TO TEXAS AG: copies a ready-made complaint and opens the Texas Attorney General's form.
-MARK AS REPORTED: records that you filed it. UNDO REPORTED reverses it.
+REPORT TO TEXAS AG: copies a ready-made complaint and opens the Texas Attorney General's complaint page. Use the online form there. Emails to the Attorney General are not read. Once you submit, they email you a confirmation; if none arrives, it did not go through.
+MARK AS REPORTED: records that you filed it, only after you saw the confirmation. UNDO REPORTED reverses it.
 FIND ME ON THIS SITE: opens that site's page for your name.
 CHECK IN BROWSER: opens the site so you can look yourself up.
 SHOW TO-DO ONLY / SHOW OVERDUE ONLY: filters the list to what needs you.
