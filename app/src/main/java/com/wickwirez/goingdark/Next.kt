@@ -6,5 +6,6 @@ fun isUnsent(b: Broker, sent: Map<String, Long>): Boolean =
         firstSent(sent, b.id) == null &&
         sent[noneKey(b.id)] == null && sent[removedKey(b.id)] == null && sent[reportedKey(b.id)] == null
 
-fun nextUnsent(brokers: List<Broker>, sent: Map<String, Long>): Broker? =
-    brokers.firstOrNull { isUnsent(it, sent) }
+// skip holds ids you tapped SKIP FOR NOW on, so they are passed over until the app is restarted.
+fun nextUnsent(brokers: List<Broker>, sent: Map<String, Long>, skip: List<String> = emptyList()): Broker? =
+    brokers.firstOrNull { isUnsent(it, sent) && it.id !in skip }

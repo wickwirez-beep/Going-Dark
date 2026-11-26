@@ -132,7 +132,8 @@ fun OptOutScreen(
     listingUrl: String,
     onSent: () -> Unit,
     onNone: () -> Unit,
-    onExit: () -> Unit
+    onExit: () -> Unit,
+    onSkip: (() -> Unit)? = null
 ) {
     val ctx = LocalContext.current
     val fillJs = remember { ctx.assets.open("autofill.js").bufferedReader().use { it.readText() } }
@@ -259,6 +260,11 @@ fun OptOutScreen(
             }
             OutlinedButton(onClick = onExit, modifier = Modifier.weight(1f), contentPadding = pad) {
                 Text("CLOSE")
+            }
+        }
+        if (onSkip != null) {
+            OutlinedButton(onClick = onSkip, modifier = Modifier.fillMaxWidth(), contentPadding = pad) {
+                Text("SKIP FOR NOW (NOTHING IS MARKED)")
             }
         }
     }
