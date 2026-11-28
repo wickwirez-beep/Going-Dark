@@ -72,6 +72,8 @@ fun HomeScreen(
     val todoCount = brokers.count { needsAction(it, results, sent, now) }
     // Rows whose 45 days (or 60 days of an appeal) ran out and that still need you, longest overdue first.
     val overdueCount = brokers.count { isOverdue(it, results, sent, now) }
+    // Overdue rows that have an email address and no final notice yet: START NEXT OVERDUE sends these one by one.
+    val overdueMailCount = brokers.count { canFinalByEmail(it, results, sent, now) }
     // The search box looks through every row, even with SHOW TO-DO ONLY on.
     val words = searchWords(query)
     val searching = words.isNotEmpty()
@@ -208,6 +210,23 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("START NEXT UNSENT ($unsentCount LEFT)", fontFamily = Mono, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (overdueMailCount > 0) {
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val nb = brokers.firstOrNull { canFinalByEmail(it, results, sent, now) }
+                        if (nb != null) {
+                            val t = System.currentTimeMillis()
+                            onExternal(nb.finalMailto(profile, firstSent(sent, nb.id) ?: t, t, clipLink(ctx, nb)))
+                            onFinalSent(nb)
+                        }
+                    },
+                    enabled = profile.ready,
+                    modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("START NEXT OVERDUE ($overdueMailCount LEFT)", fontFamily = Mono, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -415,6 +434,10 @@ fun overdueDays(b: Broker, sent: Map<String, Long>, now: Long): Int {
 // Their time is up and the row still needs you.
 fun isOverdue(b: Broker, results: Map<String, BrokerResult>, sent: Map<String, Long>, now: Long): Boolean =
     timeUp(b, sent, now) && needsAction(b, results, sent, now)
+
+// Overdue, has an email address, and no final notice or resend yet (those rows are waiting, so needsAction is false).
+fun canFinalByEmail(b: Broker, results: Map<String, BrokerResult>, sent: Map<String, Long>, now: Long): Boolean =
+    b.email.isNotEmpty() && !b.tool && sent[appealKey(b.id)] == null && isOverdue(b, results, sent, now)
 
 // One plain line above an overdue row: what to tap, depending on whether the company has an email address.
 @Composable
